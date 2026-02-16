@@ -1,21 +1,30 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { TopNav, SideNav, FooterNav, FloatingWidget } from '@/components/Navigation';
 import { PopupManager } from '@/components/Popups';
 import { HellButton } from '@/components/HellButton';
 import { LivingOverlay } from '@/components/LivingOverlay';
+import { FakeBrowserChrome } from '@/components/FakeBrowserChrome';
+import { TargetedCursorLayer } from '@/components/TargetedCursorLayer';
+import { CursorCorruptionLayer } from '@/components/CursorCorruptionLayer';
+import { LoadingLabyrinthButton } from '@/components/LoadingLabyrinthButton';
 import { getRandomTestimonials } from '@/data/testimonials';
 import { getRandomDisclaimer } from '@/data/disclaimers';
+import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
 
 export default function Home() {
+  const router = useRouter();
   const testimonials = getRandomTestimonials(4);
   const disclaimer = getRandomDisclaimer();
   const [incidentIndex, setIncidentIndex] = useState(0);
   const [countdown, setCountdown] = useState(52);
   const [ctaBlockedUntil, setCtaBlockedUntil] = useState(0);
   const [ctaNudges, setCtaNudges] = useState(0);
+  const [skinMap, setSkinMap] = useState(() => createModuleSkinMap(Date.now()));
+  const [skinPulseModule, setSkinPulseModule] = useState<SkinModule | null>(null);
 
   const incidents = [
     'Severity 2: decorative warning volume increased.',
@@ -38,6 +47,25 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
+  const mutateSkin = useCallback((module?: SkinModule) => {
+    const target = module || randomModule(Date.now() + incidentIndex + ctaNudges);
+    setSkinMap(prev => mutateModuleSkinMap(prev, target, Date.now()));
+    setSkinPulseModule(target);
+  }, [ctaNudges, incidentIndex]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (Math.random() > 0.58) mutateSkin();
+    }, 3400);
+    return () => clearInterval(timer);
+  }, [mutateSkin]);
+
+  useEffect(() => {
+    if (!skinPulseModule) return;
+    const timer = window.setTimeout(() => setSkinPulseModule(null), 760);
+    return () => window.clearTimeout(timer);
+  }, [skinPulseModule]);
+
   return (
     <PopupManager>
       <div className="min-h-screen flex flex-col">
@@ -46,11 +74,15 @@ export default function Home() {
         <div className="flex flex-1">
           <SideNav />
           
-          <main className="relative flex-1 overflow-x-hidden">
+          <main className={`relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
+            <FakeBrowserChrome phase={2} mode="home" noiseLevel={ctaNudges * 6} />
+            <TargetedCursorLayer phase={2} pityPass={false} active />
+            <CursorCorruptionLayer phase={2} pityPass={false} active eventPulse={incidentIndex + ctaNudges} />
             <LivingOverlay mode="home" intensity="low" mobileHostile eventPulse={incidentIndex + ctaNudges} />
             {/* Hero Section - Maximum Overwhelm */}
             <section 
-              className="relative min-h-[70vh] bg-gradient-to-br from-[#39FF14] via-[#FF69B4] to-[#00FFFF] p-4 md:p-8"
+              className={`relative min-h-[70vh] bg-gradient-to-br from-[#39FF14] via-[#FF69B4] to-[#00FFFF] p-4 md:p-8 ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
+              onMouseEnter={() => mutateSkin('hero')}
               style={{
                 backgroundImage: `
                   radial-gradient(circle at 20% 80%, rgba(255,255,0,0.3) 0%, transparent 50%),
@@ -128,35 +160,40 @@ export default function Home() {
                 </p>
                 
                 {/* CTA Button - blinking and annoying */}
-                <div className="mt-8">
-                  <Link href="/tour">
-                    <button
-                      onMouseEnter={() => {
-                        if (Math.random() > 0.62) {
-                          setCtaBlockedUntil(Date.now() + 1200);
-                          setCtaNudges(prev => prev + 1);
+                <div className={`mt-8 ${getSkinClass(skinMap.buttons)} ${skinPulseModule === 'buttons' ? getSkinPulseClass(skinMap.buttons) : ''}`} data-trap-zone="home-primary-cta">
+                  <div
+                    onMouseEnter={() => {
+                      mutateSkin('buttons');
+                      if (Math.random() > 0.62) {
+                        setCtaBlockedUntil(Date.now() + 1200);
+                        setCtaNudges(prev => prev + 1);
+                      }
+                    }}
+                  >
+                    <LoadingLabyrinthButton
+                      label="START YOUR TOUR OF REGRET"
+                      phase={2}
+                      pityPass={false}
+                      className="inline-flex"
+                      onIncident={() => {
+                        setCtaNudges(prev => prev + 1);
+                        mutateSkin('modals');
+                      }}
+                      onMetrics={metrics => {
+                        if (metrics.loops || metrics.regressions || metrics.falseCompletes) {
+                          setCtaNudges(prev => prev + metrics.loops + metrics.regressions + metrics.falseCompletes);
                         }
                       }}
-                      onClick={(e) => {
+                      onCommit={() => {
+                        mutateSkin();
                         if (Date.now() < ctaBlockedUntil) {
-                          e.preventDefault();
-                          e.stopPropagation();
                           alert('CTA is recalibrating. Please click again shortly.');
+                          return;
                         }
+                        router.push('/tour');
                       }}
-                      className="px-8 py-4 text-xl md:text-2xl font-bold animate-pulse-color rounded-lg shadow-chaos"
-                      style={{ 
-                        fontFamily: "'Bangers', cursive",
-                        background: 'linear-gradient(180deg, #FF69B4 0%, #FF1493 100%)',
-                        border: '4px dashed #39FF14',
-                        color: 'white',
-                        textShadow: '2px 2px 0 #000',
-                        transform: 'rotate(1deg)',
-                      }}
-                    >
-                      🎫 START YOUR TOUR OF REGRET 🎫
-                    </button>
-                  </Link>
+                    />
+                  </div>
                   
                   <p 
                     className="mt-2 text-xs animate-blink"

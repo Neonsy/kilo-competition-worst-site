@@ -29,6 +29,37 @@ interface TourResults {
     attempts: number;
     durationMs: number;
     phaseStats: Record<string, { attempts: number; events: number; regressions: number }>;
+    cursorMetrics?: {
+      personaSwaps: number;
+      desyncTriggers: number;
+      ghostBursts: number;
+      cursorMode: string;
+      cursorOffset: number;
+    };
+    loadingMetrics?: {
+      loops: number;
+      regressions: number;
+      falseCompletes: number;
+      bypassTokens: number;
+      debt: number;
+    };
+    skinMetrics?: {
+      mutations: number;
+      activeSkinMap: Record<string, string>;
+    };
+    minigameMetrics?: {
+      stats: Record<string, { fails: number; passes: number; passed: boolean }>;
+      interruptions: number;
+    };
+    interactionState?: {
+      cursorMode: string;
+      cursorHotspotOffset: number;
+      cursorDecoyVisibleUntil: number;
+      focusLockUntil: number;
+      selectionCorruptUntil: number;
+      dragResistance: number;
+      chromeNoiseLevel: number;
+    };
   };
 }
 
@@ -324,6 +355,31 @@ export default function CertificatePage() {
                   <p className="text-center text-xs mt-3" style={{ fontFamily: "'VT323', monospace" }}>
                     Duration survived: {Math.max(1, Math.round(results.runStats.durationMs / 1000))}s | Hard regressions: {results.runStats.hardRegressions} | Recovery tokens left: {results.runStats.recoveryTokensLeft}
                   </p>
+                  {results.runStats.interactionState && (
+                    <p className="text-center text-xs mt-1" style={{ fontFamily: "'VT323', monospace" }}>
+                      Cursor offset peak: {results.runStats.interactionState.cursorHotspotOffset}px | Drag resistance: {results.runStats.interactionState.dragResistance.toFixed(2)}x | Chrome noise: {Math.round(results.runStats.interactionState.chromeNoiseLevel * 100)}%
+                    </p>
+                  )}
+                  {results.runStats.cursorMetrics && (
+                    <p className="text-center text-xs mt-1" style={{ fontFamily: "'VT323', monospace" }}>
+                      Cursor swaps: {results.runStats.cursorMetrics.personaSwaps} | Desync bursts: {results.runStats.cursorMetrics.desyncTriggers} | Ghost bursts: {results.runStats.cursorMetrics.ghostBursts}
+                    </p>
+                  )}
+                  {results.runStats.loadingMetrics && (
+                    <p className="text-center text-xs mt-1" style={{ fontFamily: "'VT323', monospace" }}>
+                      Labyrinth loops: {results.runStats.loadingMetrics.loops} | Regressions: {results.runStats.loadingMetrics.regressions} | False 100%s: {results.runStats.loadingMetrics.falseCompletes} | Bypass tokens: {results.runStats.loadingMetrics.bypassTokens}
+                    </p>
+                  )}
+                  {results.runStats.skinMetrics && (
+                    <p className="text-center text-xs mt-1" style={{ fontFamily: "'VT323', monospace" }}>
+                      Skin mutations survived: {results.runStats.skinMetrics.mutations}
+                    </p>
+                  )}
+                  {results.runStats.minigameMetrics && (
+                    <p className="text-center text-xs mt-1" style={{ fontFamily: "'VT323', monospace" }}>
+                      Minigame interruptions: {results.runStats.minigameMetrics.interruptions} | Required games cleared: {Object.values(results.runStats.minigameMetrics.stats).filter(item => item.passed).length}/3
+                    </p>
+                  )}
                 </div>
               </section>
             )}

@@ -5,18 +5,30 @@ import { Suspense, useCallback, useEffect, useMemo, useReducer, useState } from 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { TopNav, SideNav, FooterNav, FloatingWidget } from '@/components/Navigation';
 import { PopupManager } from '@/components/Popups';
-import { HellButton, ProgressButton } from '@/components/HellButton';
+import { HellButton } from '@/components/HellButton';
 import { ProgressBar } from '@/components/ProgressBar';
 import { HostileInput, HostileSlider } from '@/components/HostileForm';
 import { LivingOverlay } from '@/components/LivingOverlay';
+import { TargetedCursorLayer } from '@/components/TargetedCursorLayer';
+import { CursorCorruptionLayer } from '@/components/CursorCorruptionLayer';
+import { FakeBrowserChrome } from '@/components/FakeBrowserChrome';
+import { FocusSaboteur } from '@/components/FocusSaboteur';
+import { ClipboardSaboteur } from '@/components/ClipboardSaboteur';
+import { DragFrictionField } from '@/components/DragFrictionField';
+import { LoadingLabyrinthButton, LoadingLabyrinthMetrics } from '@/components/LoadingLabyrinthButton';
+import { BureaucracyQueue } from '@/components/BureaucracyQueue';
+import { MazeOfConsent } from '@/components/MazeOfConsent';
+import { CaptchaGauntlet } from '@/components/CaptchaGauntlet';
 import { getQuestionByNumber, totalQuestions, TourQuestion } from '@/data/questions';
-import { getRandomLoadingMessage, getRandomValidationMessage } from '@/data/validations';
+import { getRandomValidationMessage } from '@/data/validations';
 import { getRandomDisclaimer } from '@/data/disclaimers';
 import { getRandomExhibits, calculateRegretScore } from '@/data/exhibits';
 import { getBadgeByScore } from '@/data/badges';
 import { getPhaseByStep, scheduleTourEvent, TourEvent } from '@/data/tourEvents';
+import { MinigameId } from '@/data/minigames';
+import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutationRule, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
 
-type TourAnswerValue = string | number | boolean | string[] | IntegrityAnswer;
+type TourAnswerValue = string | number | boolean | string[] | IntegrityAnswer | MinigameResult;
 
 interface IntegrityAnswer {
   checksum?: string;
@@ -24,9 +36,22 @@ interface IntegrityAnswer {
   oath?: boolean;
 }
 
+interface MinigameResult {
+  passed: boolean;
+  meta?: Record<string, number>;
+}
+
 interface TourAnswers {
   [key: string]: TourAnswerValue;
 }
+
+interface MinigameStat {
+  fails: number;
+  passes: number;
+  passed: boolean;
+}
+
+type CursorPersona = 'pointer' | 'text' | 'wait' | 'not-allowed' | 'crosshair';
 
 interface TourRunState {
   step: number;
@@ -42,6 +67,34 @@ interface TourRunState {
   lastEventAt: number;
   hardRegressions: number;
   phaseStats: Record<1 | 2 | 3, { attempts: number; events: number; regressions: number }>;
+  interactionState: {
+    cursorMode: 'normal' | 'trapped' | 'relaxed';
+    cursorHotspotOffset: number;
+    cursorDecoyVisibleUntil: number;
+    focusLockUntil: number;
+    selectionCorruptUntil: number;
+    dragResistance: number;
+    chromeNoiseLevel: number;
+    cursorPersona: CursorPersona;
+    cursorJitterUntil: number;
+    cursorDesyncUntil: number;
+    cursorGhostUntil: number;
+    loadingDebt: number;
+    loadingLoops: number;
+    loadingRegressions: number;
+    loadingBypassTokens: number;
+    loadingFalseCompletes: number;
+    lastLoadingIncidentAt: number;
+    themeSeed: number;
+    activeSkinMap: ReturnType<typeof createModuleSkinMap>;
+    mutationCooldownUntil: number;
+    minigameStats: Record<MinigameId, MinigameStat>;
+    skinMutationCount: number;
+    cursorPersonaSwaps: number;
+    cursorDesyncTriggers: number;
+    cursorGhostBursts: number;
+    minigameInterruptions: number;
+  };
 }
 
 type TourAction =
@@ -51,20 +104,34 @@ type TourAction =
   | { type: 'REGRESS'; phase: 1 | 2 | 3 }
   | { type: 'SET_STEP'; step: number }
   | { type: 'SET_LOCKOUT'; until: number }
+  | { type: 'SET_INTERACTION_STATE'; patch: Partial<TourRunState['interactionState']> }
   | { type: 'CLEAR_INPUT_CORRUPTION' }
   | { type: 'CONSUME_RECOVERY' }
+  | { type: 'ADD_STRIKE'; count?: number }
+  | { type: 'REGISTER_MINIGAME_FAIL'; gameId: MinigameId }
+  | { type: 'REGISTER_MINIGAME_PASS'; gameId: MinigameId }
+  | { type: 'APPLY_LOADING_METRICS'; metrics: LoadingLabyrinthMetrics }
   | { type: 'APPLY_EVENT'; event: TourEvent; phase: 1 | 2 | 3; now: number; lockoutMs: number; freezeMs: number };
 
 const MAX_HARD_REGRESSIONS = 3;
 const PITY_PASS_TRIGGER = 4;
 const CATASTROPHIC_COOLDOWN_MS = 12000;
 const ESCALATION_MODEL: Record<1 | 2 | 3, { eventChance: number; regressionChance: number; lockoutRange: [number, number] }> = {
-  1: { eventChance: 0.18, regressionChance: 0.08, lockoutRange: [800, 1800] },
-  2: { eventChance: 0.33, regressionChance: 0.14, lockoutRange: [1500, 3000] },
-  3: { eventChance: 0.47, regressionChance: 0.2, lockoutRange: [2200, 4200] },
+  1: { eventChance: 0.24, regressionChance: 0.12, lockoutRange: [900, 1900] },
+  2: { eventChance: 0.42, regressionChance: 0.2, lockoutRange: [1500, 3200] },
+  3: { eventChance: 0.58, regressionChance: 0.28, lockoutRange: [2300, 4400] },
 };
 
+function initialMinigameStats(): Record<MinigameId, MinigameStat> {
+  return {
+    'bureaucracy-queue': { fails: 0, passes: 0, passed: false },
+    'maze-consent': { fails: 0, passes: 0, passed: false },
+    'captcha-gauntlet': { fails: 0, passes: 0, passed: false },
+  };
+}
+
 function createInitialRunState(): TourRunState {
+  const seed = 91337;
   return {
     step: 1,
     strikes: 0,
@@ -73,7 +140,7 @@ function createInitialRunState(): TourRunState {
     instability: 0,
     suspicion: 0,
     recoveryTokens: 0,
-    eventSeed: 91337,
+    eventSeed: seed,
     startedAt: 0,
     attempts: {},
     lastEventAt: 0,
@@ -83,13 +150,50 @@ function createInitialRunState(): TourRunState {
       2: { attempts: 0, events: 0, regressions: 0 },
       3: { attempts: 0, events: 0, regressions: 0 },
     },
+    interactionState: {
+      cursorMode: 'normal',
+      cursorHotspotOffset: 0,
+      cursorDecoyVisibleUntil: 0,
+      focusLockUntil: 0,
+      selectionCorruptUntil: 0,
+      dragResistance: 1,
+      chromeNoiseLevel: 0,
+      cursorPersona: 'pointer',
+      cursorJitterUntil: 0,
+      cursorDesyncUntil: 0,
+      cursorGhostUntil: 0,
+      loadingDebt: 0,
+      loadingLoops: 0,
+      loadingRegressions: 0,
+      loadingBypassTokens: 0,
+      loadingFalseCompletes: 0,
+      lastLoadingIncidentAt: 0,
+      themeSeed: seed,
+      activeSkinMap: createModuleSkinMap(seed),
+      mutationCooldownUntil: 0,
+      minigameStats: initialMinigameStats(),
+      skinMutationCount: 0,
+      cursorPersonaSwaps: 0,
+      cursorDesyncTriggers: 0,
+      cursorGhostBursts: 0,
+      minigameInterruptions: 0,
+    },
   };
 }
 
 function tourReducer(state: TourRunState, action: TourAction): TourRunState {
   switch (action.type) {
     case 'RESET':
-      return { ...createInitialRunState(), eventSeed: action.seed, startedAt: action.startedAt };
+      return {
+        ...createInitialRunState(),
+        eventSeed: action.seed,
+        startedAt: action.startedAt,
+        interactionState: {
+          ...createInitialRunState().interactionState,
+          themeSeed: action.seed,
+          activeSkinMap: createModuleSkinMap(action.seed),
+        },
+      };
     case 'RECORD_ATTEMPT': {
       const count = (state.attempts[action.step] || 0) + 1;
       return {
@@ -105,7 +209,20 @@ function tourReducer(state: TourRunState, action: TourAction): TourRunState {
       };
     }
     case 'ADVANCE':
-      return { ...state, step: Math.min(action.maxStep, state.step + 1), instability: Math.max(0, state.instability - 4), suspicion: Math.max(0, state.suspicion - 3) };
+      return {
+        ...state,
+        step: Math.min(action.maxStep, state.step + 1),
+        instability: Math.max(0, state.instability - 5),
+        suspicion: Math.max(0, state.suspicion - 4),
+        interactionState: {
+          ...state.interactionState,
+          cursorMode: 'normal',
+          cursorHotspotOffset: Math.max(0, state.interactionState.cursorHotspotOffset - 1),
+          dragResistance: Math.max(1, state.interactionState.dragResistance - 0.08),
+          chromeNoiseLevel: Math.max(0, state.interactionState.chromeNoiseLevel - 0.05),
+          loadingDebt: Math.max(0, state.interactionState.loadingDebt - 1),
+        },
+      };
     case 'REGRESS': {
       if (state.step <= 1 || state.hardRegressions >= MAX_HARD_REGRESSIONS) {
         return { ...state, strikes: state.strikes + 1 };
@@ -127,8 +244,12 @@ function tourReducer(state: TourRunState, action: TourAction): TourRunState {
       return { ...state, step: action.step };
     case 'SET_LOCKOUT':
       return { ...state, lockouts: { ...state.lockouts, nextUntil: Math.max(state.lockouts.nextUntil, action.until) } };
+    case 'SET_INTERACTION_STATE':
+      return { ...state, interactionState: { ...state.interactionState, ...action.patch } };
     case 'CLEAR_INPUT_CORRUPTION':
       return { ...state, debuffs: { ...state.debuffs, inputCorruption: false } };
+    case 'ADD_STRIKE':
+      return { ...state, strikes: state.strikes + (action.count || 1) };
     case 'CONSUME_RECOVERY':
       return {
         ...state,
@@ -136,6 +257,60 @@ function tourReducer(state: TourRunState, action: TourAction): TourRunState {
         strikes: Math.max(0, state.strikes - 1),
         instability: Math.max(0, state.instability - 8),
         suspicion: Math.max(0, state.suspicion - 8),
+        interactionState: {
+          ...state.interactionState,
+          cursorMode: 'relaxed',
+          cursorHotspotOffset: Math.max(0, state.interactionState.cursorHotspotOffset - 2),
+          dragResistance: Math.max(1, state.interactionState.dragResistance - 0.2),
+          chromeNoiseLevel: Math.max(0, state.interactionState.chromeNoiseLevel - 0.18),
+        },
+      };
+    case 'REGISTER_MINIGAME_FAIL': {
+      const stats = state.interactionState.minigameStats[action.gameId];
+      return {
+        ...state,
+        interactionState: {
+          ...state.interactionState,
+          minigameStats: {
+            ...state.interactionState.minigameStats,
+            [action.gameId]: {
+              ...stats,
+              fails: stats.fails + 1,
+              passed: false,
+            },
+          },
+        },
+      };
+    }
+    case 'REGISTER_MINIGAME_PASS': {
+      const stats = state.interactionState.minigameStats[action.gameId];
+      return {
+        ...state,
+        interactionState: {
+          ...state.interactionState,
+          minigameStats: {
+            ...state.interactionState.minigameStats,
+            [action.gameId]: {
+              ...stats,
+              passes: stats.passes + 1,
+              passed: true,
+            },
+          },
+        },
+      };
+    }
+    case 'APPLY_LOADING_METRICS':
+      return {
+        ...state,
+        interactionState: {
+          ...state.interactionState,
+          loadingLoops: state.interactionState.loadingLoops + action.metrics.loops,
+          loadingRegressions: state.interactionState.loadingRegressions + action.metrics.regressions,
+          loadingFalseCompletes: state.interactionState.loadingFalseCompletes + action.metrics.falseCompletes,
+          loadingBypassTokens: state.interactionState.loadingBypassTokens + (action.metrics.bypassed ? 1 : 0),
+          loadingDebt: Math.min(10, state.interactionState.loadingDebt + action.metrics.loops + action.metrics.regressions),
+          lastLoadingIncidentAt: Date.now(),
+        },
       };
     case 'APPLY_EVENT': {
       const next = {
@@ -180,6 +355,54 @@ function tourReducer(state: TourRunState, action: TourAction): TourRunState {
         case 'input-corrupt':
           next.debuffs.inputCorruption = true;
           break;
+        case 'cursor-trap':
+          next.interactionState.cursorMode = 'trapped';
+          next.interactionState.cursorHotspotOffset = action.phase === 1 ? 2 : action.phase === 2 ? 4 : 6;
+          next.interactionState.cursorDecoyVisibleUntil = Math.max(
+            next.interactionState.cursorDecoyVisibleUntil,
+            action.now + Math.min(1800, action.lockoutMs)
+          );
+          break;
+        case 'focus-trap':
+          next.interactionState.focusLockUntil = Math.max(next.interactionState.focusLockUntil, action.now + action.lockoutMs);
+          break;
+        case 'clipboard-trap':
+          next.interactionState.selectionCorruptUntil = Math.max(next.interactionState.selectionCorruptUntil, action.now + action.lockoutMs);
+          break;
+        case 'drag-friction':
+          next.interactionState.dragResistance = Math.min(2.2, next.interactionState.dragResistance + 0.16);
+          break;
+        case 'chrome-mislead':
+          next.interactionState.chromeNoiseLevel = Math.min(1, next.interactionState.chromeNoiseLevel + 0.16);
+          break;
+        case 'cursor-global-shift':
+          next.interactionState.cursorPersona = (['pointer', 'text', 'wait', 'not-allowed', 'crosshair'][Math.floor(Math.random() * 5)] || 'pointer') as CursorPersona;
+          next.interactionState.cursorPersonaSwaps += 1;
+          next.interactionState.cursorGhostUntil = action.now + 1800;
+          break;
+        case 'cursor-desync':
+          next.interactionState.cursorDesyncUntil = Math.max(next.interactionState.cursorDesyncUntil, action.now + 1800);
+          next.interactionState.cursorJitterUntil = Math.max(next.interactionState.cursorJitterUntil, action.now + 1800);
+          next.interactionState.cursorDesyncTriggers += 1;
+          next.interactionState.cursorGhostBursts += 1;
+          break;
+        case 'loading-loop':
+          next.interactionState.loadingDebt = Math.min(10, next.interactionState.loadingDebt + 2);
+          break;
+        case 'loading-regress':
+          next.interactionState.loadingDebt = Math.min(10, next.interactionState.loadingDebt + 3);
+          break;
+        case 'loading-stall':
+          next.interactionState.loadingDebt = Math.min(10, next.interactionState.loadingDebt + 2);
+          next.lockouts.nextUntil = Math.max(next.lockouts.nextUntil, action.now + Math.floor(action.lockoutMs * 0.6));
+          break;
+        case 'skin-mutate':
+          next.interactionState.skinMutationCount += 1;
+          break;
+        case 'minigame-interrupt':
+          next.interactionState.minigameInterruptions += 1;
+          next.lockouts.nextUntil = Math.max(next.lockouts.nextUntil, action.now + 1100);
+          break;
       }
       return next;
     }
@@ -212,18 +435,25 @@ function asIntegrity(value: TourAnswerValue | undefined): IntegrityAnswer {
   return {};
 }
 
+function asMinigameResult(value: TourAnswerValue | undefined): MinigameResult | null {
+  if (value && typeof value === 'object' && !Array.isArray(value) && 'passed' in value) {
+    return value as MinigameResult;
+  }
+  return null;
+}
+
 function TourContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [runState, dispatch] = useReducer(tourReducer, undefined, createInitialRunState);
   const [answers, setAnswers] = useState<TourAnswers>({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [backClicks, setBackClicks] = useState(0);
   const [started, setStarted] = useState(false);
   const [disclaimer, setDisclaimer] = useState(getRandomDisclaimer());
   const [nowTick, setNowTick] = useState(Date.now());
+  const [focusArmSignal, setFocusArmSignal] = useState(0);
+  const [skinPulseModule, setSkinPulseModule] = useState<SkinModule | null>(null);
   const [feed, setFeed] = useState<string[]>(['Hostility engine armed.', 'Route entropy rising.']);
 
   const exhibitParam = searchParams.get('exhibit');
@@ -231,6 +461,12 @@ function TourContent() {
   const phase = getPhaseByStep(runState.step);
   const attemptsOnCurrentStep = runState.attempts[runState.step] || 0;
   const pityPass = attemptsOnCurrentStep >= PITY_PASS_TRIGGER;
+  const skinMap = runState.interactionState.activeSkinMap;
+  const minigamePasses = useMemo(
+    () =>
+      Object.values(runState.interactionState.minigameStats).reduce((sum, item) => sum + (item.passed ? 1 : 0), 0),
+    [runState.interactionState.minigameStats]
+  );
 
   useEffect(() => {
     const timer = setInterval(() => setNowTick(Date.now()), 250);
@@ -249,6 +485,46 @@ function TourContent() {
   const pushFeed = useCallback((line: string) => {
     setFeed(prev => [line, ...prev].slice(0, 8));
   }, []);
+
+  const triggerSkinMutation = useCallback(
+    (reason: string, module?: SkinModule, bypassChance = false) => {
+      const now = Date.now();
+      if (now < runState.interactionState.mutationCooldownUntil) return;
+
+      const chance = pityPass ? mutationRule.pulseChanceByPhase[phase] * 0.55 : mutationRule.pulseChanceByPhase[phase];
+      if (!bypassChance && Math.random() > chance) return;
+
+      const target = module || randomModule(now + runState.step + runState.strikes);
+      const nextMap = mutateModuleSkinMap(runState.interactionState.activeSkinMap, target, now + runState.eventSeed);
+      dispatch({
+        type: 'SET_INTERACTION_STATE',
+        patch: {
+          activeSkinMap: nextMap,
+          mutationCooldownUntil: now + mutationRule.minIntervalMs,
+          skinMutationCount: runState.interactionState.skinMutationCount + 1,
+        },
+      });
+      setSkinPulseModule(target);
+      pushFeed(`Design roulette pulse (${reason}) mutated ${target}.`);
+    },
+    [
+      phase,
+      pityPass,
+      pushFeed,
+      runState.eventSeed,
+      runState.interactionState.activeSkinMap,
+      runState.interactionState.mutationCooldownUntil,
+      runState.interactionState.skinMutationCount,
+      runState.step,
+      runState.strikes,
+    ]
+  );
+
+  useEffect(() => {
+    if (!skinPulseModule) return;
+    const timer = window.setTimeout(() => setSkinPulseModule(null), 820);
+    return () => window.clearTimeout(timer);
+  }, [skinPulseModule]);
 
   const seeded = useCallback(
     (salt: number, attemptBoost = 0) => {
@@ -273,12 +549,19 @@ function TourContent() {
         pushFeed(`Mercy protocol blocked ${event.id}.`);
         return false;
       }
+      const now = Date.now();
       const [minLock, maxLock] = ESCALATION_MODEL[eventPhase].lockoutRange;
       const lockoutMs = minLock + Math.floor(seeded(31, attemptBoost) * (maxLock - minLock));
       const freezeMs = Math.floor(lockoutMs * 0.7);
 
-      dispatch({ type: 'APPLY_EVENT', event, phase: eventPhase, now: Date.now(), lockoutMs, freezeMs });
+      dispatch({ type: 'APPLY_EVENT', event, phase: eventPhase, now, lockoutMs, freezeMs });
       pushFeed(`Event: ${event.copy}`);
+      if (event.effect === 'focus-trap' || event.effect === 'minigame-interrupt') {
+        setFocusArmSignal(now + eventPhase);
+      }
+      if (event.effect === 'skin-mutate') {
+        triggerSkinMutation('event', undefined, true);
+      }
       if (event.effect === 'regress' || event.effect === 'lockout' || event.effect === 'freeze') {
         setError(event.copy);
         return true;
@@ -286,8 +569,27 @@ function TourContent() {
       if (event.effect === 'strike') setError(event.copy);
       return false;
     },
-    [pushFeed, seeded]
+    [pushFeed, seeded, triggerSkinMutation]
   );
+
+  useEffect(() => {
+    if (!started) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const idleEvent = scheduleTourEvent({
+        phase,
+        trigger: 'idle',
+        now,
+        lastEventAt: runState.lastEventAt,
+        catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
+        baseChance: ESCALATION_MODEL[phase].eventChance * 0.58,
+        rng: salt => seeded(salt, 4),
+      });
+      if (!idleEvent) return;
+      applyEvent(idleEvent, phase, pityPass, 4);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [applyEvent, phase, pityPass, runState.lastEventAt, seeded, started]);
 
   const handleAnswer = (questionId: string, value: TourAnswerValue) => {
     let nextValue = value;
@@ -297,12 +599,21 @@ function TourContent() {
       dispatch({ type: 'CLEAR_INPUT_CORRUPTION' });
     }
     setAnswers(prev => ({ ...prev, [questionId]: nextValue }));
+    triggerSkinMutation('input');
     setError(null);
   };
 
   const validateStep = (question: TourQuestion, mercy: boolean): boolean => {
     const answer = answers[question.id];
     const randomFailChance = Math.min(0.08 + question.difficultyWeight * 0.07 + runState.instability * 0.002 + (question.phase - 1) * 0.05, 0.62);
+
+    if (question.type === 'minigame') {
+      const result = asMinigameResult(answer);
+      if (!result?.passed) {
+        setError('Required minigame is not completed yet.');
+        return false;
+      }
+    }
 
     if (!mercy && Math.random() < randomFailChance) {
       setError(getRandomValidationMessage());
@@ -366,8 +677,52 @@ function TourContent() {
       }
     }
 
+    if (question.id === 'integrity-check-beta' && typeof answer === 'string') {
+      const raw = answer.trim();
+      if (!raw.includes('-') || !/\d/.test(raw)) {
+        setError('Use phrase-number format, e.g. unstable-42.');
+        return false;
+      }
+    }
+
     return true;
   };
+
+  const handleMinigamePass = useCallback(
+    (gameId: MinigameId, meta: Record<string, number>) => {
+      if (!currentQuestion || currentQuestion.minigameId !== gameId) return;
+      dispatch({ type: 'REGISTER_MINIGAME_PASS', gameId });
+      setAnswers(prev => ({ ...prev, [currentQuestion.id]: { passed: true, meta } }));
+      triggerSkinMutation('minigame-win', 'question-card', true);
+      setError(null);
+      pushFeed(`Minigame ${gameId} passed.`);
+    },
+    [currentQuestion, pushFeed, triggerSkinMutation]
+  );
+
+  const handleMinigameFail = useCallback(
+    (gameId: MinigameId) => {
+      if (!currentQuestion || currentQuestion.minigameId !== gameId) return;
+      const failCount = runState.interactionState.minigameStats[gameId].fails + 1;
+      dispatch({ type: 'REGISTER_MINIGAME_FAIL', gameId });
+      dispatch({ type: 'ADD_STRIKE' });
+      dispatch({ type: 'SET_LOCKOUT', until: Date.now() + 850 + gameId.length * 35 });
+      setAnswers(prev => ({ ...prev, [currentQuestion.id]: { passed: false } }));
+      setError(`Minigame failed: ${gameId}. Queue penalty applied.`);
+      setFocusArmSignal(Date.now() + failCount);
+      triggerSkinMutation('minigame-fail', 'modals', true);
+      pushFeed(`Minigame ${gameId} failed (${failCount}).`);
+
+      if (gameId === 'captcha-gauntlet' && failCount >= 4) {
+        dispatch({
+          type: 'SET_INTERACTION_STATE',
+          patch: { loadingBypassTokens: runState.interactionState.loadingBypassTokens + 1 },
+        });
+        pushFeed('Captcha pity token granted for repeated failures.');
+      }
+    },
+    [currentQuestion, pushFeed, runState.interactionState.loadingBypassTokens, runState.interactionState.minigameStats, triggerSkinMutation]
+  );
 
   const handleBack = useCallback(() => {
     const now = Date.now();
@@ -417,6 +772,37 @@ function TourContent() {
         attempts: totalAttempts,
         durationMs: Math.max(0, Date.now() - runState.startedAt),
         phaseStats: runState.phaseStats,
+        cursorMetrics: {
+          personaSwaps: runState.interactionState.cursorPersonaSwaps,
+          desyncTriggers: runState.interactionState.cursorDesyncTriggers,
+          ghostBursts: runState.interactionState.cursorGhostBursts,
+          cursorMode: runState.interactionState.cursorMode,
+          cursorOffset: runState.interactionState.cursorHotspotOffset,
+        },
+        loadingMetrics: {
+          loops: runState.interactionState.loadingLoops,
+          regressions: runState.interactionState.loadingRegressions,
+          falseCompletes: runState.interactionState.loadingFalseCompletes,
+          bypassTokens: runState.interactionState.loadingBypassTokens,
+          debt: runState.interactionState.loadingDebt,
+        },
+        skinMetrics: {
+          mutations: runState.interactionState.skinMutationCount,
+          activeSkinMap: runState.interactionState.activeSkinMap,
+        },
+        minigameMetrics: {
+          stats: runState.interactionState.minigameStats,
+          interruptions: runState.interactionState.minigameInterruptions,
+        },
+        interactionState: {
+          cursorMode: runState.interactionState.cursorMode,
+          cursorHotspotOffset: runState.interactionState.cursorHotspotOffset,
+          cursorDecoyVisibleUntil: runState.interactionState.cursorDecoyVisibleUntil,
+          focusLockUntil: runState.interactionState.focusLockUntil,
+          selectionCorruptUntil: runState.interactionState.selectionCorruptUntil,
+          dragResistance: runState.interactionState.dragResistance,
+          chromeNoiseLevel: runState.interactionState.chromeNoiseLevel,
+        },
       },
     };
 
@@ -424,7 +810,7 @@ function TourContent() {
     router.push('/certificate');
   };
 
-  const handleNext = async () => {
+  const handleNext = () => {
     if (!currentQuestion) return;
     const now = Date.now();
 
@@ -436,11 +822,12 @@ function TourContent() {
       setError('UI freeze burst active. Please wait.');
       return;
     }
-    if (isLoading) return;
 
     const attemptCount = (runState.attempts[runState.step] || 0) + 1;
     dispatch({ type: 'RECORD_ATTEMPT', step: runState.step, phase: currentQuestion.phase });
     const mercy = attemptCount >= PITY_PASS_TRIGGER;
+    setFocusArmSignal(now + currentQuestion.phase + attemptCount);
+    triggerSkinMutation('submit');
 
     const beforeValidateEvent = scheduleTourEvent({
       phase: currentQuestion.phase,
@@ -472,11 +859,6 @@ function TourContent() {
     });
     if (afterValidateEvent && applyEvent(afterValidateEvent, currentQuestion.phase, mercy, 2)) return;
 
-    setIsLoading(true);
-    setLoadingMessage(getRandomLoadingMessage());
-    await new Promise(resolve => setTimeout(resolve, 1200 + Math.random() * 1800));
-    setIsLoading(false);
-
     const beforeTransitionEvent = scheduleTourEvent({
       phase: currentQuestion.phase,
       trigger: 'before-transition',
@@ -492,6 +874,7 @@ function TourContent() {
       dispatch({ type: 'REGRESS', phase: currentQuestion.phase });
       setError('Sequence drift: regression penalty applied.');
       pushFeed('Regression penalty triggered by escalation model.');
+      triggerSkinMutation('regression', 'question-card', true);
       return;
     }
 
@@ -502,6 +885,7 @@ function TourContent() {
 
     dispatch({ type: 'ADVANCE', maxStep: totalQuestions });
     setDisclaimer(getRandomDisclaimer());
+    triggerSkinMutation('advance', 'hero');
     setError(null);
   };
 
@@ -534,9 +918,10 @@ function TourContent() {
                     <div className="text-left p-4 bg-[#FFFF99] border-2 border-dashed border-[#808080] mb-4" style={{ fontFamily: "'VT323', monospace" }}>
                       <p className="font-bold mb-2">📋 TOUR DETAILS:</p>
                       <ul className="text-sm space-y-1">
-                        <li>• Duration: 12 hostile steps</li>
+                        <li>• Duration: 18 hostile steps</li>
                         <li>• Escalation: 3 phases</li>
-                        <li>• Difficulty: Brutal but beatable</li>
+                        <li>• Difficulty: unstable and punitive</li>
+                        <li>• Required minigames: 3</li>
                         <li>• Recovery: Rare pity tokens</li>
                         <li>• Exit: Conditionally available</li>
                       </ul>
@@ -565,55 +950,135 @@ function TourContent() {
         <TopNav />
         <div className="flex flex-1">
           <SideNav />
-          <main className="relative flex-1 overflow-x-hidden">
-            <LivingOverlay mode="tour" phase={phase} intensity={phase === 3 ? 'high' : phase === 2 ? 'medium' : 'low'} mobileHostile eventPulse={runState.strikes + runState.instability + runState.suspicion} />
-            <div className="relative z-10 p-4 md:p-6 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4">
-              <section>
-                <ProgressBar currentStep={runState.step} totalSteps={totalQuestions} phase={phase} strikes={runState.strikes} instability={runState.instability} suspicion={runState.suspicion} lockoutMs={lockoutMs} />
+          <main className={`relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
+            <FakeBrowserChrome phase={phase} mode="tour" noiseLevel={runState.interactionState.chromeNoiseLevel * 100} onIncident={pushFeed} />
+            <CursorCorruptionLayer
+              phase={phase}
+              pityPass={pityPass}
+              active
+              eventPulse={
+                runState.strikes +
+                runState.instability +
+                runState.suspicion +
+                runState.interactionState.loadingDebt +
+                runState.interactionState.loadingLoops
+              }
+              onIncident={pushFeed}
+            />
+            <TargetedCursorLayer
+              phase={phase}
+              pityPass={pityPass}
+              active
+              offsetBoost={runState.interactionState.cursorHotspotOffset}
+              chanceBoost={runState.interactionState.cursorMode === 'trapped' ? 0.08 : 0}
+              onIncident={pushFeed}
+            />
+            <FocusSaboteur
+              phase={phase}
+              step={runState.step}
+              pityPass={pityPass}
+              armSignal={focusArmSignal}
+              active
+              onIncident={pushFeed}
+            />
+            <ClipboardSaboteur
+              phase={phase}
+              pityPass={pityPass}
+              active
+              corruptionUntil={runState.interactionState.selectionCorruptUntil}
+              onIncident={pushFeed}
+            />
+            <DragFrictionField
+              phase={phase}
+              pityPass={pityPass}
+              active
+              resistanceBoost={Math.round(runState.interactionState.dragResistance * 10)}
+              onIncident={pushFeed}
+            />
+            <LivingOverlay
+              mode="tour"
+              phase={phase}
+              intensity={phase === 3 ? 'high' : phase === 2 ? 'medium' : 'low'}
+              mobileHostile
+              eventPulse={runState.strikes + runState.instability + runState.suspicion + runState.interactionState.loadingDebt}
+            />
+            <div className={`relative z-10 p-4 md:p-6 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4 ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}>
+              <section data-focus-zone data-clipboard-hostile onMouseEnter={() => triggerSkinMutation('hover', 'question-card')}>
+                <ProgressBar
+                  currentStep={runState.step}
+                  totalSteps={totalQuestions}
+                  phase={phase}
+                  strikes={runState.strikes}
+                  instability={runState.instability}
+                  suspicion={runState.suspicion}
+                  lockoutMs={lockoutMs}
+                  loadingLoops={runState.interactionState.loadingLoops}
+                  loadingRegressions={runState.interactionState.loadingRegressions}
+                  minigamePasses={minigamePasses}
+                />
                 {currentQuestion && (
                   <QuestionCard
+                    className={`${getSkinClass(skinMap['question-card'])} ${skinPulseModule === 'question-card' ? getSkinPulseClass(skinMap['question-card']) : ''}`}
                     question={currentQuestion}
                     answer={answers[currentQuestion.id]}
                     onAnswer={value => handleAnswer(currentQuestion.id, value)}
+                    onMinigamePass={handleMinigamePass}
+                    onMinigameFail={handleMinigameFail}
+                    attemptsOnStep={attemptsOnCurrentStep}
+                    phase={phase}
                     error={error}
-                    isLoading={isLoading}
-                    loadingMessage={loadingMessage}
                     disclaimer={disclaimer}
                     gateOpen={nowTick % 7000 < 1800}
                     expectedPin={String((runState.step + runState.strikes + attemptsOnCurrentStep) % 10)}
                   />
                 )}
 
-                <div className="flex justify-between items-center mt-6">
+                <div className={`flex justify-between items-center mt-6 ${getSkinClass(skinMap.buttons)} ${skinPulseModule === 'buttons' ? getSkinPulseClass(skinMap.buttons) : ''}`} data-trap-zone="tour-nav-actions">
                   <HellButton variant="win95" label={`← Back (click ${4 - (backClicks % 4)} more times)`} onClick={handleBack} size="small" />
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
                     <HellButton
                       variant="link"
                       label="Skip (invalid)"
                       onClick={() => {
                         dispatch({ type: 'SET_LOCKOUT', until: Date.now() + 1200 });
                         setError('Skipping is not permitted. Lockout applied.');
+                        triggerSkinMutation('invalid-skip', 'buttons', true);
                       }}
                       size="small"
                     />
-                    <ProgressButton label={runState.step >= totalQuestions ? 'Complete Tour →' : 'Next →'} onClick={handleNext} />
+                    <LoadingLabyrinthButton
+                      className="min-w-[230px]"
+                      label={runState.step >= totalQuestions ? 'Finalize Tour Commit' : 'Next (Labyrinth)'}
+                      phase={phase}
+                      pityPass={pityPass || runState.interactionState.loadingBypassTokens > 0}
+                      onIncident={pushFeed}
+                      onMetrics={(metrics: LoadingLabyrinthMetrics) => {
+                        dispatch({ type: 'APPLY_LOADING_METRICS', metrics });
+                        if (metrics.loops > 0 || metrics.regressions > 0 || metrics.falseCompletes > 0) {
+                          triggerSkinMutation('labyrinth', 'modals', true);
+                        }
+                      }}
+                      onCommit={handleNext}
+                    />
                   </div>
                 </div>
 
                 {(lockoutMs > 0 || freezeMs > 0) && (
-                  <div className="mt-3 p-2 text-xs bg-[#FFFF99] border-2 border-dashed border-[#FF0000] text-[#8B4513]" style={{ fontFamily: "'VT323', monospace" }}>
+                  <div className={`mt-3 p-2 text-xs bg-[#FFFF99] border-2 border-dashed border-[#FF0000] text-[#8B4513] ${getSkinClass(skinMap.modals)} ${skinPulseModule === 'modals' ? getSkinPulseClass(skinMap.modals) : ''}`} style={{ fontFamily: "'VT323', monospace" }}>
                     {lockoutMs > 0 && <p>Lockout active: {Math.ceil(lockoutMs / 1000)}s remaining.</p>}
                     {freezeMs > 0 && <p>Freeze burst active: {Math.ceil(freezeMs / 1000)}s remaining.</p>}
                   </div>
                 )}
               </section>
 
-              <aside className="mobile-hostile-panel space-y-3">
+              <aside className={`mobile-hostile-panel space-y-3 ${getSkinClass(skinMap['side-panel'])} ${skinPulseModule === 'side-panel' ? getSkinPulseClass(skinMap['side-panel']) : ''}`}>
                 <div className="p-3 bg-[#FFFF99] border-2 border-[#8B4513] shadow-ugly">
                   <p className="text-xs font-bold" style={{ fontFamily: "'Bangers', cursive" }}>{phaseLabel}</p>
                   <p className="text-[11px] mt-1" style={{ fontFamily: "'VT323', monospace" }}>Attempts on current step: {attemptsOnCurrentStep}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Pity pass: {pityPass ? 'ACTIVE' : `at ${PITY_PASS_TRIGGER} attempts`}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Recovery tokens: {runState.recoveryTokens}</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Cursor persona swaps: {runState.interactionState.cursorPersonaSwaps}</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Loading debt: {runState.interactionState.loadingDebt}</p>
                 </div>
 
                 <div className="p-3 bg-[#E6E6FA] border-2 border-dashed border-[#808080]">
@@ -632,6 +1097,9 @@ function TourContent() {
                     const stats = runState.phaseStats[phaseKey];
                     return <p key={phaseKey} className="text-[10px]" style={{ fontFamily: "'VT323', monospace" }}>P{phaseKey}: attempts {stats.attempts} | events {stats.events} | regressions {stats.regressions}</p>;
                   })}
+                  <p className="text-[10px] mt-2" style={{ fontFamily: "'VT323', monospace" }}>
+                    Minigame fails: {Object.values(runState.interactionState.minigameStats).reduce((sum, item) => sum + item.fails, 0)}
+                  </p>
                 </div>
               </aside>
             </div>
@@ -646,29 +1114,35 @@ function TourContent() {
 
 export default function TourPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#F5F5DC]"><div className="text-center p-8" style={{ fontFamily: "'Comic Neue', cursive" }}><span className="text-6xl animate-bounce-chaotic inline-block">🎫</span><p className="mt-4 text-xl animate-blink">Loading 12-step hostility engine...</p><div className="progress-lie mt-4 w-48 mx-auto"><div className="progress-lie-fill" style={{ width: '97%' }} /><div className="progress-lie-text">97%</div></div></div></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#F5F5DC]"><div className="text-center p-8" style={{ fontFamily: "'Comic Neue', cursive" }}><span className="text-6xl animate-bounce-chaotic inline-block">🎫</span><p className="mt-4 text-xl animate-blink">Loading 18-step hostility engine...</p><div className="progress-lie mt-4 w-48 mx-auto"><div className="progress-lie-fill" style={{ width: '97%' }} /><div className="progress-lie-text">97%</div></div></div></div>}>
       <TourContent />
     </Suspense>
   );
 }
 
 function QuestionCard({
+  className,
   question,
   answer,
   onAnswer,
+  onMinigamePass,
+  onMinigameFail,
+  attemptsOnStep,
+  phase,
   error,
-  isLoading,
-  loadingMessage,
   disclaimer,
   gateOpen,
   expectedPin,
 }: {
+  className?: string;
   question: TourQuestion;
   answer: TourAnswerValue | undefined;
   onAnswer: (value: TourAnswerValue) => void;
+  onMinigamePass: (gameId: MinigameId, meta: Record<string, number>) => void;
+  onMinigameFail: (gameId: MinigameId) => void;
+  attemptsOnStep: number;
+  phase: 1 | 2 | 3;
   error: string | null;
-  isLoading: boolean;
-  loadingMessage: string;
   disclaimer: string;
   gateOpen: boolean;
   expectedPin: string;
@@ -683,22 +1157,20 @@ function QuestionCard({
   const style = styles[question.questionNumber % styles.length];
 
   return (
-    <div className={`${style.bg} ${style.border} p-6 shadow-ugly relative`} style={{ transform: `rotate(${(Math.random() - 0.5) * 2}deg)` }}>
+    <div className={`${style.bg} ${style.border} p-6 shadow-ugly relative ${className || ''}`} style={{ transform: `rotate(${(Math.random() - 0.5) * 2}deg)` }}>
       <div className="absolute -top-4 -left-4 w-12 h-12 bg-[#FF69B4] rounded-full flex items-center justify-center text-white font-bold shadow-lg animate-pulse" style={{ fontFamily: "'Bangers', cursive" }}>#{question.questionNumber}</div>
-
-      {isLoading && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-          <div className="bg-[#FFFF99] p-6 border-4 border-double border-[#8B4513]" style={{ fontFamily: "'VT323', monospace" }}>
-            <p className="text-lg animate-blink">{loadingMessage}</p>
-            <div className="progress-lie mt-2 w-48 h-4"><div className="progress-lie-fill" style={{ width: `${Math.random() * 100}%` }} /></div>
-          </div>
-        </div>
-      )}
 
       <h2 className="text-2xl md:text-3xl mb-2 text-center" style={{ fontFamily: "'Bangers', cursive", color: '#8B4513', textShadow: '2px 2px 0 #FFFF99' }}>{question.title}</h2>
       <p className="text-center mb-6" style={{ fontFamily: "'Comic Neue', cursive", fontStyle: 'italic' }}>{question.subtitle}</p>
 
-      <div className="mb-4">{renderQuestionContent(question, answer, onAnswer, gateOpen, expectedPin)}</div>
+      <div className="mb-4">
+        {renderQuestionContent(question, answer, onAnswer, gateOpen, expectedPin, {
+          phase,
+          attemptsOnStep,
+          onMinigamePass,
+          onMinigameFail,
+        })}
+      </div>
 
       {error && <div className="p-3 bg-[#FFE4E1] border-2 border-[#FF0000] text-[#FF0000] animate-shake" style={{ fontFamily: "'Comic Neue', cursive" }}>⚠️ {error}</div>}
 
@@ -723,22 +1195,61 @@ function renderQuestionContent(
   answer: TourAnswerValue | undefined,
   onAnswer: (value: TourAnswerValue) => void,
   gateOpen: boolean,
-  expectedPin: string
+  expectedPin: string,
+  minigameContext: {
+    phase: 1 | 2 | 3;
+    attemptsOnStep: number;
+    onMinigamePass: (gameId: MinigameId, meta: Record<string, number>) => void;
+    onMinigameFail: (gameId: MinigameId) => void;
+  }
 ) {
+  if (question.type === 'minigame' && question.minigameId) {
+    const gameId = question.minigameId;
+    if (gameId === 'bureaucracy-queue') {
+      return (
+        <BureaucracyQueue
+          attemptCount={minigameContext.attemptsOnStep}
+          onPass={meta => minigameContext.onMinigamePass(gameId, meta)}
+          onFail={() => minigameContext.onMinigameFail(gameId)}
+        />
+      );
+    }
+    if (gameId === 'maze-consent') {
+      return (
+        <MazeOfConsent
+          phase={minigameContext.phase}
+          attemptCount={minigameContext.attemptsOnStep}
+          onPass={meta => minigameContext.onMinigamePass(gameId, meta)}
+          onFail={() => minigameContext.onMinigameFail(gameId)}
+        />
+      );
+    }
+    return (
+      <CaptchaGauntlet
+        phase={minigameContext.phase}
+        attemptCount={minigameContext.attemptsOnStep}
+        onPass={meta => minigameContext.onMinigamePass(gameId, meta)}
+        onFail={() => minigameContext.onMinigameFail(gameId)}
+      />
+    );
+  }
+
   if (question.type === 'slider') {
     return <HostileSlider label="How confident are you right now?" value={(answer as number) || 97} onChange={onAnswer} />;
   }
 
   if (question.type === 'input' || question.type === 'memory') {
     return (
-      <HostileInput
-        name={question.id}
-        label={question.id === 'memory-trap' ? 'Recall Code' : 'Your Name'}
-        placeholder={question.placeholder || "Enter a value that won't be rejected..."}
-        required={question.validation?.required}
-        value={(answer as string) || ''}
-        onChange={onAnswer}
-      />
+      <div data-clipboard-hostile>
+        <HostileInput
+          name={question.id}
+          label={question.id === 'memory-trap' ? 'Recall Code' : 'Your Name'}
+          placeholder={question.placeholder || "Enter a value that won't be rejected..."}
+          required={question.validation?.required}
+          value={(answer as string) || ''}
+          onChange={onAnswer}
+        />
+      </div>
     );
   }
 
@@ -781,7 +1292,7 @@ function renderQuestionContent(
   if (question.type === 'integrity') {
     const integrity = asIntegrity(answer);
     return (
-      <div className="space-y-3">
+      <div className="space-y-3" data-clipboard-hostile>
         <div className="p-3 bg-[#FFFF99] border-2 border-dashed border-[#8B4513] text-xs" style={{ fontFamily: "'VT323', monospace" }}>PIN hint: <strong>{expectedPin}</strong></div>
         <input type="text" value={integrity.checksum || ''} onChange={e => onAnswer({ ...integrity, checksum: e.target.value })} placeholder="Checksum (needs a number)" className="w-full px-3 py-2 border-2 border-[#808080]" style={{ fontFamily: "'Courier New', monospace" }} />
         <input type="text" value={integrity.pin || ''} onChange={e => onAnswer({ ...integrity, pin: e.target.value })} placeholder="PIN" className="w-full px-3 py-2 border-2 border-[#808080]" style={{ fontFamily: "'Courier New', monospace" }} />

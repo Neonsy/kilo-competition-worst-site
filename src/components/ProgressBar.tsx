@@ -10,6 +10,9 @@ interface ProgressBarProps {
   instability?: number;
   suspicion?: number;
   lockoutMs?: number;
+  loadingLoops?: number;
+  loadingRegressions?: number;
+  minigamePasses?: number;
   className?: string;
 }
 
@@ -21,6 +24,9 @@ export function ProgressBar({
   instability = 0,
   suspicion = 0,
   lockoutMs = 0,
+  loadingLoops = 0,
+  loadingRegressions = 0,
+  minigamePasses = 0,
   className = '',
 }: ProgressBarProps) {
   const [displayProgress, setDisplayProgress] = useState(0);
@@ -101,6 +107,15 @@ export function ProgressBar({
             Lockout: {Math.ceil(lockoutMs / 1000)}s
           </span>
         )}
+        <span className="px-2 py-1 text-[10px] bg-[#333333] text-[#FFFF99] border border-[#AAAAAA]">
+          Labyrinth loops: {loadingLoops}
+        </span>
+        <span className="px-2 py-1 text-[10px] bg-[#5A2D82] text-white border border-[#C0C0C0]">
+          Load regressions: {loadingRegressions}
+        </span>
+        <span className="px-2 py-1 text-[10px] bg-[#006400] text-[#FFFF99] border border-[#39FF14]">
+          Minigames passed: {minigamePasses}
+        </span>
       </div>
       
       <div className="progress-lie h-6">

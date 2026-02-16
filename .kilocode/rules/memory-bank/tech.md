@@ -26,6 +26,9 @@ bun build          # Production build
 bun start          # Start production server
 bun lint           # Run ESLint
 bun typecheck      # Run TypeScript type checking
+npm run lint       # ESLint (current workflow)
+npm run typecheck  # TypeScript no-emit check
+npm run build      # Next production build
 ```
 
 ## Project Configuration
@@ -141,3 +144,49 @@ bun typecheck      # Run TypeScript type checking
 - None required for base template
 - Add as needed for features
 - Use `.env.local` for local development
+
+## Hostility Primitive Runtime (2026-02-16)
+
+- Added `src/data/hostilityPrimitives.ts` with phase probabilities, cooldowns, and guardrail defaults.
+- Added client interaction components:
+  - `src/components/TargetedCursorLayer.tsx`
+  - `src/components/FakeBrowserChrome.tsx`
+  - `src/components/FocusSaboteur.tsx`
+  - `src/components/ClipboardSaboteur.tsx`
+  - `src/components/DragFrictionField.tsx`
+- Extended `src/data/tourEvents.ts` with primitive effects:
+  - `cursor-trap`, `focus-trap`, `clipboard-trap`, `drag-friction`, `chrome-mislead`
+
+## Ultra-Hostility V3 Runtime (2026-02-16)
+
+- Expanded tour content model in `src/data/questions.ts` to 18 steps with required minigame metadata (`minigameId`, `requiredWinCondition`) and mutation hooks.
+- Added V3 data modules:
+  - `src/data/skinPacks.ts` (8 skin packs + mutation cooldown rules + module map helpers)
+  - `src/data/minigames.ts` (minigame IDs/spec metadata)
+- Extended `src/data/tourEvents.ts` effects with:
+  - `cursor-global-shift`, `cursor-desync`
+  - `loading-loop`, `loading-regress`, `loading-stall`
+  - `skin-mutate`, `minigame-interrupt`
+- Added V3 runtime components:
+  - `src/components/CursorCorruptionLayer.tsx`
+  - `src/components/LoadingLabyrinthButton.tsx`
+  - `src/components/BureaucracyQueue.tsx`
+  - `src/components/MazeOfConsent.tsx`
+  - `src/components/CaptchaGauntlet.tsx`
+- `src/app/tour/page.tsx` now wires:
+  - required minigame gates (steps 6/11/16)
+  - loading labyrinth commit button
+  - global cursor corruption + targeted cursor traps
+  - focus/clipboard/drag sabotage layers
+  - per-module skin roulette + mutation pulses
+  - extended session payload diagnostics (`cursorMetrics`, `loadingMetrics`, `skinMetrics`, `minigameMetrics`)
+- `src/app/page.tsx`, `src/app/exhibits/page.tsx`, `src/app/help/page.tsx`, and `src/app/settings/page.tsx` now run lighter global cursor + skin roulette mutations.
+- `src/app/globals.css` includes:
+  - cursor corruption visuals
+  - loading labyrinth styles
+  - minigame shell/grid styles
+  - skin-pack and pulse animation classes
+- Verification performed:
+  - `npm run typecheck` ✅
+  - `npm run lint` ✅
+  - `npm run build` ✅

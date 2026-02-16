@@ -6,7 +6,12 @@ export const metadata: Metadata = {
   description: "Experience the worst choices humanity has to offer. Interactive exhibits of terrible ideas. Come for the regret, stay because you can't find the exit.",
   keywords: "museum, bad decisions, regret, terrible choices, interactive exhibits",
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
   },
 };
 

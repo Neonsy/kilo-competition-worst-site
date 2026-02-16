@@ -198,6 +198,7 @@ export function HostileSlider({
           min={min}
           max={max}
           value={displayValue}
+          data-drag-friction
           onChange={handleChange}
           onMouseDown={() => setIsDragging(true)}
           onMouseUp={() => setIsDragging(false)}

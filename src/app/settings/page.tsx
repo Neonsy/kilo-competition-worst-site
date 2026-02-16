@@ -1,9 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { TopNav, SideNav, FooterNav, FloatingWidget } from '@/components/Navigation';
 import { PopupManager } from '@/components/Popups';
 import { HellButton } from '@/components/HellButton';
+import { LivingOverlay } from '@/components/LivingOverlay';
+import { FakeBrowserChrome } from '@/components/FakeBrowserChrome';
+import { TargetedCursorLayer } from '@/components/TargetedCursorLayer';
+import { CursorCorruptionLayer } from '@/components/CursorCorruptionLayer';
+import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
 
 interface Setting {
   id: string;
@@ -148,11 +153,14 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<Setting[]>(initialSettings);
   const [saved, setSaved] = useState(false);
   const [resetCount, setResetCount] = useState(0);
+  const [skinMap, setSkinMap] = useState(() => createModuleSkinMap(Date.now()));
+  const [skinPulseModule, setSkinPulseModule] = useState<SkinModule | null>(null);
 
   const updateSetting = (id: string, value: boolean | string | number) => {
     setSettings(prev => prev.map(s => 
       s.id === id ? { ...s, value } : s
     ));
+    mutateSkin('inputs');
     
     // Show random feedback
     const messages = [
@@ -166,11 +174,13 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     setSaved(true);
+    mutateSkin('buttons');
     setTimeout(() => setSaved(false), 3000);
   };
 
   const handleReset = () => {
     setResetCount(prev => prev + 1);
+    mutateSkin('modals');
     
     if (resetCount < 5) {
       alert(`Reset failed. Please try again. (${5 - resetCount} attempts remaining)`);
@@ -189,8 +199,28 @@ export default function SettingsPage() {
     
     // Create fake download that doesn't work
     alert('Exporting settings...\n\nJust kidding! Your settings are trapped here forever.');
+    mutateSkin('footer');
     URL.revokeObjectURL(url);
   };
+
+  const mutateSkin = useCallback((module?: SkinModule) => {
+    const target = module || randomModule(Date.now() + resetCount + settings.length);
+    setSkinMap(prev => mutateModuleSkinMap(prev, target, Date.now()));
+    setSkinPulseModule(target);
+  }, [resetCount, settings.length]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (Math.random() > 0.66) mutateSkin();
+    }, 3600);
+    return () => clearInterval(timer);
+  }, [mutateSkin]);
+
+  useEffect(() => {
+    if (!skinPulseModule) return;
+    const timer = window.setTimeout(() => setSkinPulseModule(null), 700);
+    return () => window.clearTimeout(timer);
+  }, [skinPulseModule]);
 
   return (
     <PopupManager>
@@ -198,10 +228,15 @@ export default function SettingsPage() {
         <TopNav />
         <div className="flex flex-1">
           <SideNav />
-          <main className="flex-1 overflow-x-hidden">
+          <main className={`relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
+            <FakeBrowserChrome phase={1} mode="home" noiseLevel={resetCount + Number(saved)} />
+            <TargetedCursorLayer phase={1} pityPass={false} active />
+            <CursorCorruptionLayer phase={1} pityPass={false} active eventPulse={resetCount + Number(saved)} />
+            <LivingOverlay mode="home" intensity="low" mobileHostile eventPulse={resetCount} />
             {/* Header */}
             <section 
-              className="p-4 md:p-8 bg-gradient-to-r from-[#008080] to-[#00FFFF]"
+              className={`p-4 md:p-8 bg-gradient-to-r from-[#008080] to-[#00FFFF] ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
+              onMouseEnter={() => mutateSkin('nav')}
               style={{ fontFamily: "'Bangers', cursive" }}
             >
               <h1 className="text-3xl md:text-5xl text-center text-white">

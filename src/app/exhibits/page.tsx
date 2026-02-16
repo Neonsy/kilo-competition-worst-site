@@ -1,13 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { TopNav, SideNav, FooterNav, FloatingWidget } from '@/components/Navigation';
 import { PopupManager } from '@/components/Popups';
 import { HellButton } from '@/components/HellButton';
 import { LivingOverlay } from '@/components/LivingOverlay';
+import { FakeBrowserChrome } from '@/components/FakeBrowserChrome';
+import { TargetedCursorLayer } from '@/components/TargetedCursorLayer';
+import { CursorCorruptionLayer } from '@/components/CursorCorruptionLayer';
+import { DragFrictionField } from '@/components/DragFrictionField';
 import { exhibits, exhibitCategories } from '@/data/exhibits';
 import { getRandomDisclaimer } from '@/data/disclaimers';
+import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
 
 type ViewMode = 'grid' | 'list' | 'chaos';
 
@@ -20,6 +25,9 @@ export default function ExhibitsPage() {
   const [unstableShift, setUnstableShift] = useState(0);
   const [maintenanceUntil, setMaintenanceUntil] = useState(0);
   const [incidentTape, setIncidentTape] = useState(0);
+  const [driftDial, setDriftDial] = useState(28);
+  const [skinMap, setSkinMap] = useState(() => createModuleSkinMap(Date.now()));
+  const [skinPulseModule, setSkinPulseModule] = useState<SkinModule | null>(null);
   const disclaimer = getRandomDisclaimer();
 
   // Randomly switch view mode
@@ -49,6 +57,25 @@ export default function ExhibitsPage() {
     }, 3000);
     return () => clearInterval(interval);
   }, []);
+
+  const mutateSkin = useCallback((module?: SkinModule) => {
+    const target = module || randomModule(Date.now() + incidentTape + randomSwitches);
+    setSkinMap(prev => mutateModuleSkinMap(prev, target, Date.now()));
+    setSkinPulseModule(target);
+  }, [incidentTape, randomSwitches]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (Math.random() > 0.54) mutateSkin();
+    }, 3100);
+    return () => clearInterval(timer);
+  }, [mutateSkin]);
+
+  useEffect(() => {
+    if (!skinPulseModule) return;
+    const timer = window.setTimeout(() => setSkinPulseModule(null), 760);
+    return () => window.clearTimeout(timer);
+  }, [skinPulseModule]);
 
   // Filter and sort exhibits
   const filteredExhibits = exhibits
@@ -82,11 +109,16 @@ export default function ExhibitsPage() {
         <div className="flex flex-1">
           <SideNav />
           
-          <main className="relative flex-1 overflow-x-hidden">
+          <main className={`relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
+            <FakeBrowserChrome phase={2} mode="exhibits" noiseLevel={incidentTape + randomSwitches * 4} />
+            <TargetedCursorLayer phase={2} pityPass={false} active />
+            <CursorCorruptionLayer phase={2} pityPass={false} active eventPulse={incidentTape + randomSwitches} />
+            <DragFrictionField phase={2} pityPass={false} active resistanceBoost={Math.min(20, incidentTape)} />
             <LivingOverlay mode="exhibits" intensity="medium" mobileHostile eventPulse={incidentTape + randomSwitches} />
             {/* Header */}
             <section 
-              className="p-4 md:p-8 bg-gradient-to-r from-[#FF69B4] to-[#00FFFF]"
+              className={`p-4 md:p-8 bg-gradient-to-r from-[#FF69B4] to-[#00FFFF] ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
+              onMouseEnter={() => mutateSkin('nav')}
               style={{
                 backgroundImage: `
                   repeating-linear-gradient(
@@ -162,7 +194,7 @@ export default function ExhibitsPage() {
                 </div>
 
                 {/* View Mode Toggle */}
-                <div className="flex flex-wrap gap-2 mb-4">
+                <div className={`flex flex-wrap gap-2 mb-4 ${getSkinClass(skinMap.buttons)} ${skinPulseModule === 'buttons' ? getSkinPulseClass(skinMap.buttons) : ''}`} data-trap-zone="exhibits-view-mode">
                   <span 
                     className="text-sm"
                     style={{ fontFamily: "'Press Start 2P', cursive", fontSize: '8px' }}
@@ -172,7 +204,10 @@ export default function ExhibitsPage() {
                   {(['grid', 'list', 'chaos'] as ViewMode[]).map((mode) => (
                     <button
                       key={mode}
-                      onClick={() => handleViewModeChange(mode)}
+                      onClick={() => {
+                        mutateSkin('buttons');
+                        handleViewModeChange(mode);
+                      }}
                       className={`
                         px-4 py-2 text-sm transition-all
                         ${viewMode === mode 
@@ -193,7 +228,7 @@ export default function ExhibitsPage() {
                 </div>
 
                 {/* Category Filter */}
-                <div className="mb-4">
+                <div className="mb-4" data-trap-zone="exhibits-category-filter">
                   <label 
                     className="block text-sm mb-2"
                     style={{ fontFamily: "'Times New Roman', serif" }}
@@ -256,6 +291,24 @@ export default function ExhibitsPage() {
                   >
                     Showing {filteredExhibits.length} of {exhibits.length} exhibits
                   </span>
+                </div>
+
+                <div className="mt-4 p-3 border-2 border-dashed border-[#8B4513] bg-[#FFFF99]" style={{ fontFamily: "'VT323', monospace" }}>
+                  <label className="block text-xs mb-1">Catalog drag stability dial (non-binding): {driftDial}%</label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={driftDial}
+                    data-drag-friction
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      setDriftDial(next);
+                      setUnstableShift(Math.floor((next - 50) / 2));
+                      mutateSkin('inputs');
+                    }}
+                    className="slider-evil w-full"
+                  />
                 </div>
               </div>
             </section>

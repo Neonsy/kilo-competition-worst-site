@@ -1,11 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { TopNav, SideNav, FooterNav, FloatingWidget } from '@/components/Navigation';
 import { PopupManager } from '@/components/Popups';
 import { HellButton } from '@/components/HellButton';
 import { HostileInput } from '@/components/HostileForm';
+import { LivingOverlay } from '@/components/LivingOverlay';
+import { FakeBrowserChrome } from '@/components/FakeBrowserChrome';
+import { TargetedCursorLayer } from '@/components/TargetedCursorLayer';
+import { CursorCorruptionLayer } from '@/components/CursorCorruptionLayer';
 import { getRandomDisclaimer } from '@/data/disclaimers';
+import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
 
 interface FAQItem {
   question: string;
@@ -93,6 +98,8 @@ export default function HelpPage() {
     { text: "Hello! I'm HelpBot v0.97b. How can I not help you today?", isBot: true },
   ]);
   const [chatInput, setChatInput] = useState('');
+  const [skinMap, setSkinMap] = useState(() => createModuleSkinMap(Date.now()));
+  const [skinPulseModule, setSkinPulseModule] = useState<SkinModule | null>(null);
 
   const categories = ['All', 'General', 'Navigation', 'Technical', 'Privacy', 'Tour', 'Support'];
   
@@ -130,16 +137,40 @@ export default function HelpPage() {
     }, 1000 + Math.random() * 2000);
   };
 
+  const mutateSkin = useCallback((module?: SkinModule) => {
+    const target = module || randomModule(Date.now() + chatMessages.length + (expandedFAQ || 0));
+    setSkinMap(prev => mutateModuleSkinMap(prev, target, Date.now()));
+    setSkinPulseModule(target);
+  }, [chatMessages.length, expandedFAQ]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (Math.random() > 0.64) mutateSkin();
+    }, 3800);
+    return () => clearInterval(timer);
+  }, [mutateSkin]);
+
+  useEffect(() => {
+    if (!skinPulseModule) return;
+    const timer = window.setTimeout(() => setSkinPulseModule(null), 700);
+    return () => window.clearTimeout(timer);
+  }, [skinPulseModule]);
+
   return (
     <PopupManager>
       <div className="min-h-screen flex flex-col">
         <TopNav />
         <div className="flex flex-1">
           <SideNav />
-          <main className="flex-1 overflow-x-hidden">
+          <main className={`relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
+            <FakeBrowserChrome phase={1} mode="home" noiseLevel={chatMessages.length} />
+            <TargetedCursorLayer phase={1} pityPass={false} active />
+            <CursorCorruptionLayer phase={1} pityPass={false} active eventPulse={chatMessages.length} />
+            <LivingOverlay mode="home" intensity="low" mobileHostile eventPulse={chatMessages.length} />
             {/* Header */}
             <section 
-              className="p-4 md:p-8 bg-gradient-to-r from-[#7BA05B] to-[#8B4513]"
+              className={`p-4 md:p-8 bg-gradient-to-r from-[#7BA05B] to-[#8B4513] ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
+              onMouseEnter={() => mutateSkin('nav')}
               style={{ fontFamily: "'Bangers', cursive" }}
             >
               <h1 className="text-3xl md:text-5xl text-center text-[#FFFF99]">
@@ -156,7 +187,7 @@ export default function HelpPage() {
             {/* Quick Links - Different styles */}
             <section className="p-4 bg-[#F5F5DC] border-b-4 border-[#808080]">
               <div className="flex flex-wrap justify-center gap-2">
-                <a href="#faq" className="px-4 py-2 bg-[#FF69B4] text-white">📋 FAQ</a>
+                <a href="#faq" onMouseEnter={() => mutateSkin('buttons')} className="px-4 py-2 bg-[#FF69B4] text-white">📋 FAQ</a>
                 <a href="#contact" className="skeuomorphic px-4 py-2">📧 Contact</a>
                 <a href="#chat" className="win95 px-4 py-2">💬 Live Chat</a>
                 <a href="#docs" className="px-4 py-2 bg-[#00FFFF] text-[#8B4513]">📚 Docs</a>
