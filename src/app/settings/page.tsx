@@ -8,7 +8,13 @@ import { LivingOverlay } from '@/components/LivingOverlay';
 import { FakeBrowserChrome } from '@/components/FakeBrowserChrome';
 import { TargetedCursorLayer } from '@/components/TargetedCursorLayer';
 import { CursorCorruptionLayer } from '@/components/CursorCorruptionLayer';
+import ResonanceFractureLayer from '@/components/ResonanceFractureLayer';
+import ResonancePulseLayer from '@/components/ResonancePulseLayer';
+import UIFragmentDebris from '@/components/UIFragmentDebris';
+import SignalNoiseVeil from '@/components/SignalNoiseVeil';
+import ResonanceShellCorruptor from '@/components/ResonanceShellCorruptor';
 import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
+import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
 
 interface Setting {
   id: string;
@@ -155,12 +161,14 @@ export default function SettingsPage() {
   const [resetCount, setResetCount] = useState(0);
   const [skinMap, setSkinMap] = useState(() => createModuleSkinMap(Date.now()));
   const [skinPulseModule, setSkinPulseModule] = useState<SkinModule | null>(null);
+  const [pulseState, setPulseState] = useState(initialResonancePulseState);
 
   const updateSetting = (id: string, value: boolean | string | number) => {
     setSettings(prev => prev.map(s => 
       s.id === id ? { ...s, value } : s
     ));
     mutateSkin('inputs');
+    setPulseState(prev => emitPulse(prev, 'event', 0.42));
     
     // Show random feedback
     const messages = [
@@ -175,12 +183,14 @@ export default function SettingsPage() {
   const handleSave = () => {
     setSaved(true);
     mutateSkin('buttons');
+    setPulseState(prev => emitPulse(prev, 'event', 0.54));
     setTimeout(() => setSaved(false), 3000);
   };
 
   const handleReset = () => {
     setResetCount(prev => prev + 1);
     mutateSkin('modals');
+    setPulseState(prev => emitPulse(prev, 'event', 0.6));
     
     if (resetCount < 5) {
       alert(`Reset failed. Please try again. (${5 - resetCount} attempts remaining)`);
@@ -200,6 +210,7 @@ export default function SettingsPage() {
     // Create fake download that doesn't work
     alert('Exporting settings...\n\nJust kidding! Your settings are trapped here forever.');
     mutateSkin('footer');
+    setPulseState(prev => emitPulse(prev, 'event', 0.48));
     URL.revokeObjectURL(url);
   };
 
@@ -207,7 +218,11 @@ export default function SettingsPage() {
     const target = module || randomModule(Date.now() + resetCount + settings.length);
     setSkinMap(prev => mutateModuleSkinMap(prev, target, Date.now()));
     setSkinPulseModule(target);
+    setPulseState(prev => emitPulse(prev, 'mutation', 0.46));
   }, [resetCount, settings.length]);
+
+  const resonanceIntensity = Math.min(0.86, 0.4 + resetCount * 0.045 + (saved ? 0.12 : 0));
+  const resonanceSafeZones = [{ x: 18, y: 28, w: 64, h: 46 }];
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -228,14 +243,21 @@ export default function SettingsPage() {
         <TopNav />
         <div className="flex flex-1">
           <SideNav />
-          <main className={`relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
+          <main className={`res-interaction-root relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
             <FakeBrowserChrome phase={1} mode="home" noiseLevel={resetCount + Number(saved)} />
             <TargetedCursorLayer phase={1} pityPass={false} active />
             <CursorCorruptionLayer phase={1} pityPass={false} active eventPulse={resetCount + Number(saved)} />
             <LivingOverlay mode="home" intensity="low" mobileHostile eventPulse={resetCount} />
+            <ResonanceShellCorruptor pulseKey={pulseState.key} intensity={resonanceIntensity} profile="light" />
+            <div className="res-layer-stack">
+              <SignalNoiseVeil severity={Math.min(0.68, resonanceIntensity * 0.68)} scanlines={false} noise pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
+              <ResonanceFractureLayer phase={1} intensity={resonanceIntensity} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
+              <ResonancePulseLayer phase={1} intensity={Math.min(0.75, resonanceIntensity + 0.04)} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
+              <UIFragmentDebris mode="settings" density="medium" intensity={Math.min(0.72, resonanceIntensity)} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
+            </div>
             {/* Header */}
             <section 
-              className={`p-4 md:p-8 bg-gradient-to-r from-[#008080] to-[#00FFFF] ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
+              className={`res-shell p-4 md:p-8 bg-gradient-to-r from-[#008080] to-[#00FFFF] ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
               onMouseEnter={() => mutateSkin('nav')}
               style={{ fontFamily: "'Bangers', cursive" }}
             >
@@ -251,7 +273,7 @@ export default function SettingsPage() {
             </section>
 
             {/* Settings Grid */}
-            <section className="p-4 md:p-8 bg-[#F5F5DC]">
+            <section className="res-shell res-control-safe p-4 md:p-8 bg-[#F5F5DC]">
               <div className="max-w-2xl mx-auto">
                 {/* Notice */}
                 <div 

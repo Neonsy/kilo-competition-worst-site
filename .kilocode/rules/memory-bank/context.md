@@ -2,7 +2,7 @@
 
 ## Current State
 
-**Project Status**: ✅ COMPLETE - Ultra-Hostility V3 implemented (18-step tour + required triple minigames + global cursor corruption + loading labyrinth + per-module design roulette), while preserving one completion path.
+**Project Status**: ✅ COMPLETE - Ultra-Hostility V3 implemented (18-step tour + required triple minigames + global cursor corruption + loading labyrinth + per-module design roulette), while preserving one completion path. Resonance visual layer now uses pulse-bus retriggers and a control-safe z-layer contract so the "intrusive thought" effects stay visible and eventful.
 
 A deliberately awful website that masquerades as an interactive museum of terrible ideas. The core functionality (Tour Wizard) works perfectly while every aspect of UX/UI is designed to frustrate, confuse, and amuse users.
 
@@ -42,6 +42,29 @@ A deliberately awful website that masquerades as an interactive museum of terrib
   - Per-module design roulette skin packs + pulse mutations
   - Expanded event effects (`cursor-global-shift`, `cursor-desync`, `loading-loop`, `loading-regress`, `loading-stall`, `skin-mutate`, `minigame-interrupt`)
   - Certificate diagnostics expanded with cursor/loading/skin/minigame metrics
+- [x] Resonance Layer ("Intrusive Thought" visual pass) implemented:
+  - Added `ResonanceFractureLayer.tsx` - cracks, seam tears, panel drift in peripheral zones
+  - Added `ResonancePulseLayer.tsx` - red resonance bands, ghost duplication, chromatic bursts
+  - Added `UIFragmentDebris.tsx` - fake detached UI fragments floating in whitespace
+  - Added `SignalNoiseVeil.tsx` - scanlines, noise texture, low-alpha flicker
+  - Extended `globals.css` with resonance tokens, classes, keyframes, and intensity modifiers
+  - Wired resonance layers into all pages (tour, home, exhibits, help, settings, certificate)
+  - Layers are decorative-only (pointer-events: none) and respect z-index hierarchy
+- [x] Resonance Fix (merge pass) implemented on top of snap 4 redesign:
+  - Added `src/lib/resonancePulseBus.ts` (`emitPulse`) and `pulseKey` retrigger wiring on all pages
+  - Updated resonance components to support `pulseKey`, `safeZones`, and `coverage` (`peripheral|mixed|full`) with backward-compatible `eventPulse`
+  - Introduced layer contract classes (`res-interaction-root`, `res-layer-stack`, `res-shell`, `res-control-safe`) for "above shells, below controls"
+  - Raised visibility/intensity and widened fracture/debris distribution into mixed interior coverage while preserving control-safe zones
+- [x] Resonance Shell Corruption pass implemented:
+  - Added `src/components/ResonanceShellCorruptor.tsx` to animate real `.res-shell` panels through break -> heal cycles on every `pulseKey`
+  - Added shell rupture/repair CSS states in `src/app/globals.css` (`res-shell-breaking`, `res-shell-crack-snap`, `res-shell-fault-warp`, `res-shell-healing`, `res-shell-ambient`)
+  - Added control-safe halo flashes via `.res-control-halo-active .res-control-safe::after` to keep effects near controls without blocking input
+  - Wired shell corruption into Tour/Home/Exhibits/Help/Settings/Certificate with per-page intensity profiles
+- [x] Resonance light-profile tuning pass:
+  - Increased `light` shell profile cadence/duration/targets in `src/components/ResonanceShellCorruptor.tsx`
+  - Added profile-scaled intensity amplification for `light`/`medium`
+  - Increased Settings resonance baseline and reduced safe-zone footprint in `src/app/settings/page.tsx`
+  - Expanded Settings shell corruption coverage by marking the settings grid section as `res-shell`
 
 ## Current Structure
 
@@ -55,7 +78,7 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | `src/app/settings/page.tsx` | Fake settings | ✅ Complete |
 | `src/components/` | Shared chaos components | ✅ Complete |
 | `src/data/` | Exhibits, questions, badges, hostility events/primitives/skins/minigames | ✅ Complete |
-| `src/app/globals.css` | Chaos styles | ✅ Complete |
+| `src/app/globals.css` | Chaos styles + resonance tokens/classes/keyframes | ✅ Complete |
 
 ## Key Features Implemented
 
@@ -66,6 +89,7 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 - Multiple border styles (dotted, double, bevel, inset)
 - Animated elements (blinking text, scrolling marquee, pulsing badges)
 - Tiled backgrounds, gradients, drop shadows
+- **Resonance layer**: cracks, seams, pulse bands, ghost offsets, fragment debris, signal noise
 
 ### UX Torture
 - Navigation in 4 places with different labels
@@ -99,3 +123,7 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | 2026-02-16 | Implemented 12-step stateful hostility engine + living overlays across Tour/Home/Exhibits |
 | 2026-02-16 | Implemented targeted cursor traps and four anti-UX primitives; integrated with phase events and interaction state metrics |
 | 2026-02-16 | Implemented Ultra-Hostility V3: 18-step tour, global cursor corruption, loading labyrinth, required triple minigames, and per-module design roulette with pulse mutations |
+| 2026-02-16 | Added Resonance Layer ("Intrusive Thought" visual pass): fracture, pulse, debris, and noise veil components for UI-breaking-apart aesthetic |
+| 2026-02-17 | Resonance Fix merge pass: timestamp pulse bus retriggers, z-layer contract (above shells/below controls), stronger mixed-coverage fractures/debris, and per-page `pulseKey` wiring |
+| 2026-02-17 | Resonance Shell Corruption pass: actual shell break-and-repair animations with organic ambient twitches and control-safe halo pulses |
+| 2026-02-17 | Resonance light-profile tuning: stronger light shell effects and broader settings-page shell coverage |

@@ -10,10 +10,16 @@ import { LivingOverlay } from '@/components/LivingOverlay';
 import { FakeBrowserChrome } from '@/components/FakeBrowserChrome';
 import { TargetedCursorLayer } from '@/components/TargetedCursorLayer';
 import { CursorCorruptionLayer } from '@/components/CursorCorruptionLayer';
+import ResonanceFractureLayer from '@/components/ResonanceFractureLayer';
+import ResonancePulseLayer from '@/components/ResonancePulseLayer';
+import UIFragmentDebris from '@/components/UIFragmentDebris';
+import SignalNoiseVeil from '@/components/SignalNoiseVeil';
+import ResonanceShellCorruptor from '@/components/ResonanceShellCorruptor';
 import { LoadingLabyrinthButton } from '@/components/LoadingLabyrinthButton';
 import { getRandomTestimonials } from '@/data/testimonials';
 import { getRandomDisclaimer } from '@/data/disclaimers';
 import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
+import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
 
 export default function Home() {
   const router = useRouter();
@@ -25,6 +31,7 @@ export default function Home() {
   const [ctaNudges, setCtaNudges] = useState(0);
   const [skinMap, setSkinMap] = useState(() => createModuleSkinMap(Date.now()));
   const [skinPulseModule, setSkinPulseModule] = useState<SkinModule | null>(null);
+  const [pulseState, setPulseState] = useState(initialResonancePulseState);
 
   const incidents = [
     'Severity 2: decorative warning volume increased.',
@@ -36,6 +43,7 @@ export default function Home() {
   useEffect(() => {
     const rotator = setInterval(() => {
       setIncidentIndex(prev => (prev + 1) % incidents.length);
+      setPulseState(prev => emitPulse(prev, 'event', 0.5));
     }, 4500);
     return () => clearInterval(rotator);
   }, [incidents.length]);
@@ -51,7 +59,14 @@ export default function Home() {
     const target = module || randomModule(Date.now() + incidentIndex + ctaNudges);
     setSkinMap(prev => mutateModuleSkinMap(prev, target, Date.now()));
     setSkinPulseModule(target);
+    setPulseState(prev => emitPulse(prev, 'mutation', 0.56));
   }, [ctaNudges, incidentIndex]);
+
+  const resonanceIntensity = Math.min(0.92, 0.42 + incidentIndex * 0.07 + ctaNudges * 0.04);
+  const resonanceSafeZones = [
+    { x: 15, y: 21, w: 70, h: 56 },
+    { x: 26, y: 58, w: 48, h: 22 },
+  ];
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -74,14 +89,21 @@ export default function Home() {
         <div className="flex flex-1">
           <SideNav />
           
-          <main className={`relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
+          <main className={`res-interaction-root relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
             <FakeBrowserChrome phase={2} mode="home" noiseLevel={ctaNudges * 6} />
             <TargetedCursorLayer phase={2} pityPass={false} active />
             <CursorCorruptionLayer phase={2} pityPass={false} active eventPulse={incidentIndex + ctaNudges} />
             <LivingOverlay mode="home" intensity="low" mobileHostile eventPulse={incidentIndex + ctaNudges} />
+            <ResonanceShellCorruptor pulseKey={pulseState.key} intensity={resonanceIntensity} profile="medium" />
+            <div className="res-layer-stack">
+              <SignalNoiseVeil severity={Math.min(0.88, resonanceIntensity * 0.7)} scanlines noise pulseKey={pulseState.key} coverage="full" safeZones={resonanceSafeZones} />
+              <ResonanceFractureLayer phase={2} intensity={resonanceIntensity} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
+              <ResonancePulseLayer phase={2} intensity={Math.min(0.94, resonanceIntensity + 0.04)} pulseKey={pulseState.key} coverage="full" safeZones={resonanceSafeZones} />
+              <UIFragmentDebris mode="home" density="medium" intensity={Math.min(0.9, resonanceIntensity)} pulseKey={pulseState.key} coverage="full" safeZones={resonanceSafeZones} />
+            </div>
             {/* Hero Section - Maximum Overwhelm */}
             <section 
-              className={`relative min-h-[70vh] bg-gradient-to-br from-[#39FF14] via-[#FF69B4] to-[#00FFFF] p-4 md:p-8 ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
+              className={`res-shell relative min-h-[70vh] bg-gradient-to-br from-[#39FF14] via-[#FF69B4] to-[#00FFFF] p-4 md:p-8 ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
               onMouseEnter={() => mutateSkin('hero')}
               style={{
                 backgroundImage: `
@@ -160,13 +182,14 @@ export default function Home() {
                 </p>
                 
                 {/* CTA Button - blinking and annoying */}
-                <div className={`mt-8 ${getSkinClass(skinMap.buttons)} ${skinPulseModule === 'buttons' ? getSkinPulseClass(skinMap.buttons) : ''}`} data-trap-zone="home-primary-cta">
+                <div className={`res-control-safe mt-8 ${getSkinClass(skinMap.buttons)} ${skinPulseModule === 'buttons' ? getSkinPulseClass(skinMap.buttons) : ''}`} data-trap-zone="home-primary-cta">
                   <div
                     onMouseEnter={() => {
                       mutateSkin('buttons');
                       if (Math.random() > 0.62) {
                         setCtaBlockedUntil(Date.now() + 1200);
                         setCtaNudges(prev => prev + 1);
+                        setPulseState(prev => emitPulse(prev, 'event', 0.62));
                       }
                     }}
                   >
@@ -178,10 +201,12 @@ export default function Home() {
                       onIncident={() => {
                         setCtaNudges(prev => prev + 1);
                         mutateSkin('modals');
+                        setPulseState(prev => emitPulse(prev, 'loading', 0.58));
                       }}
                       onMetrics={metrics => {
                         if (metrics.loops || metrics.regressions || metrics.falseCompletes) {
                           setCtaNudges(prev => prev + metrics.loops + metrics.regressions + metrics.falseCompletes);
+                          setPulseState(prev => emitPulse(prev, 'loading', Math.min(1, 0.52 + metrics.loops * 0.1 + metrics.regressions * 0.14)));
                         }
                       }}
                       onCommit={() => {

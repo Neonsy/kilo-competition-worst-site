@@ -1381,3 +1381,483 @@ body {
 .skin-pulse-broken-admin {
   animation: skin-pulse 0.72s ease;
 }
+
+/* ============================================
+   RESONANCE LAYER - "INTRUSIVE THOUGHT" VISUALS
+   UI breaking apart, trying to escape containment
+   ============================================ */
+
+/* === RESONANCE TOKENS === */
+:root {
+  /* Resonance palette */
+  --res-danger: #FF0000;
+  --res-void: #0a0a0a;
+  --res-paper: #f5f5dc;
+  --res-cyan: #00FFFF;
+  --res-fracture-alpha: 0.65;
+  --res-noise-alpha: 0.12;
+  --res-pulse-alpha: 0.38;
+  --res-ghost-offset: 3px;
+}
+
+/* === RESONANCE KEYFRAMES === */
+@keyframes res_pulse {
+  0%, 100% { opacity: 0; transform: scaleY(0.8); }
+  15% { opacity: var(--res-pulse-alpha); transform: scaleY(1); }
+  30% { opacity: 0; transform: scaleY(0.9); }
+  50% { opacity: calc(var(--res-pulse-alpha) * 0.5); transform: scaleY(1.02); }
+  70% { opacity: 0; transform: scaleY(0.85); }
+}
+
+@keyframes res_fault_shift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(2px, -1px) rotate(0.3deg); }
+  40% { transform: translate(-1px, 2px) rotate(-0.2deg); }
+  60% { transform: translate(1px, 1px) rotate(0.1deg); }
+  80% { transform: translate(-2px, -1px) rotate(-0.3deg); }
+}
+
+@keyframes res_scanline_drift {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes res_ghost_snap {
+  0%, 100% { opacity: 0; transform: translate(0, 0); }
+  10% { opacity: 0.55; transform: translate(var(--res-ghost-offset), calc(var(--res-ghost-offset) * -1)); }
+  20% { opacity: 0; transform: translate(calc(var(--res-ghost-offset) * 2), 0); }
+  30% { opacity: 0.33; transform: translate(0, var(--res-ghost-offset)); }
+  50% { opacity: 0; transform: translate(0, 0); }
+}
+
+@keyframes res_fragment_float {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0.7; }
+  25% { transform: translate(15px, -20px) rotate(3deg); opacity: 0.5; }
+  50% { transform: translate(-10px, -40px) rotate(-2deg); opacity: 0.3; }
+  75% { transform: translate(5px, -60px) rotate(1deg); opacity: 0.15; }
+  100% { transform: translate(-5px, -80px) rotate(0deg); opacity: 0; }
+}
+
+@keyframes res_crack_glow {
+  0%, 100% { box-shadow: 0 0 0 transparent; }
+  50% { box-shadow: 0 0 8px var(--res-danger), inset 0 0 4px var(--res-cyan); }
+}
+
+@keyframes res_seam_tear {
+  0%, 100% { clip-path: inset(0 0 0 0); }
+  25% { clip-path: inset(2px 0 0 1px); }
+  50% { clip-path: inset(0 1px 2px 0); }
+  75% { clip-path: inset(1px 2px 0 1px); }
+}
+
+@keyframes res_chromatic_burst {
+  0% { filter: blur(0) drop-shadow(0 0 0 transparent); opacity: 0; }
+  20% { filter: blur(1px) drop-shadow(2px 0 0 rgba(255,0,0,0.5)) drop-shadow(-2px 0 0 rgba(0,255,255,0.5)); opacity: 0.8; }
+  40% { filter: blur(2px) drop-shadow(4px 0 0 rgba(255,0,0,0.3)) drop-shadow(-4px 0 0 rgba(0,255,255,0.3)); opacity: 0.5; }
+  100% { filter: blur(0) drop-shadow(0 0 0 transparent); opacity: 0; }
+}
+
+@keyframes res_panel_drift {
+  0%, 100% { transform: translate(0, 0) skew(0deg); }
+  33% { transform: translate(3px, 1px) skew(0.2deg); }
+  66% { transform: translate(-2px, 2px) skew(-0.15deg); }
+}
+
+@keyframes res_shell_break {
+  0% {
+    transform: translate3d(0, 0, 0) skew(0deg);
+    filter: saturate(1) contrast(1);
+  }
+  28% {
+    transform: translate3d(calc(var(--res-shell-intensity, 0.4) * 5px), calc(var(--res-shell-intensity, 0.4) * -3px), 0) skew(calc(var(--res-shell-intensity, 0.4) * 0.7deg));
+    filter: saturate(1.14) contrast(1.08);
+  }
+  57% {
+    transform: translate3d(calc(var(--res-shell-intensity, 0.4) * -4px), calc(var(--res-shell-intensity, 0.4) * 3px), 0) skew(calc(var(--res-shell-intensity, 0.4) * -0.8deg));
+    filter: saturate(0.9) contrast(1.2);
+  }
+  100% {
+    transform: translate3d(calc(var(--res-shell-intensity, 0.4) * 1px), 0, 0) skew(0deg);
+    filter: saturate(1.08) contrast(1.04);
+  }
+}
+
+@keyframes res_shell_heal {
+  0% {
+    transform: translate3d(calc(var(--res-shell-intensity, 0.4) * 1px), 0, 0);
+    filter: saturate(1.08) contrast(1.04);
+  }
+  45% {
+    transform: translate3d(calc(var(--res-shell-intensity, 0.4) * -1px), calc(var(--res-shell-intensity, 0.4) * 1px), 0);
+    filter: saturate(1.03) contrast(1.02);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+    filter: saturate(1) contrast(1);
+  }
+}
+
+@keyframes res_shell_overlay_tear {
+  0% {
+    opacity: 0;
+    transform: translateX(0) scaleX(1);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+  }
+  30% {
+    opacity: calc(0.35 + var(--res-shell-intensity, 0.4) * 0.4);
+    transform: translateX(calc(var(--res-shell-intensity, 0.4) * 3px)) scaleX(1.01);
+    clip-path: polygon(0 2%, 100% 0, 100% 99%, 0 97%);
+  }
+  64% {
+    opacity: calc(0.24 + var(--res-shell-intensity, 0.4) * 0.22);
+    transform: translateX(calc(var(--res-shell-intensity, 0.4) * -2px)) scaleX(0.995);
+    clip-path: polygon(0 0, 99% 1%, 100% 100%, 1% 99%);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(0) scaleX(1);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+  }
+}
+
+@keyframes res_shell_ambient {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) skew(0deg);
+    filter: saturate(1) contrast(1);
+  }
+  40% {
+    transform: translate3d(1px, -1px, 0) skew(0.2deg);
+    filter: saturate(1.05) contrast(1.03);
+  }
+  70% {
+    transform: translate3d(-1px, 1px, 0) skew(-0.14deg);
+    filter: saturate(0.98) contrast(1.04);
+  }
+}
+
+@keyframes res_control_halo {
+  0%, 100% {
+    opacity: 0;
+    box-shadow: 0 0 0 rgba(255, 0, 0, 0);
+  }
+  28% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 1px rgba(255, 0, 0, 0.42), 0 0 10px rgba(0, 255, 255, 0.35);
+  }
+  54% {
+    opacity: 0.35;
+    box-shadow: 0 0 0 1px rgba(255, 0, 0, 0.2), 0 0 6px rgba(0, 255, 255, 0.2);
+  }
+}
+
+/* === RESONANCE DECORATIVE UTILITY === */
+.res-decorative {
+  pointer-events: none;
+  user-select: none;
+}
+
+.res-interaction-root {
+  position: relative;
+  isolation: isolate;
+}
+
+.res-layer-stack {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  overflow: clip;
+}
+
+.res-shell {
+  position: relative;
+  z-index: 10;
+  isolation: isolate;
+  overflow: clip;
+  transform-origin: center center;
+  --res-shell-intensity: 0.35;
+  --res-shell-break-ms: 220ms;
+  --res-shell-heal-ms: 360ms;
+}
+
+.res-shell::before,
+.res-shell::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2;
+}
+
+.res-shell::before {
+  background:
+    linear-gradient(104deg, transparent 22%, rgba(255, 0, 0, 0.45) 31%, rgba(0, 255, 255, 0.42) 34%, transparent 42%),
+    repeating-linear-gradient(172deg, rgba(139, 69, 19, 0.28) 0 1px, transparent 1px 8px);
+  mix-blend-mode: screen;
+}
+
+.res-shell::after {
+  background:
+    linear-gradient(180deg, rgba(255, 0, 0, 0.12), transparent 24%),
+    linear-gradient(0deg, rgba(0, 255, 255, 0.1), transparent 28%);
+  mix-blend-mode: color-dodge;
+}
+
+.res-shell-breaking {
+  animation: res_shell_break var(--res-shell-break-ms) cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+.res-shell-breaking::before,
+.res-shell-breaking::after {
+  animation: res_shell_overlay_tear var(--res-shell-break-ms) ease-out both;
+}
+
+.res-shell-crack-snap {
+  clip-path: polygon(0 0, 100% 0, 100% 30%, 98% 33%, 100% 35%, 100% 100%, 0 100%, 1% 67%, 0 64%);
+}
+
+.res-shell-fault-warp {
+  filter: drop-shadow(2px 0 0 rgba(255, 0, 0, 0.25)) drop-shadow(-2px 0 0 rgba(0, 255, 255, 0.25));
+}
+
+.res-shell-shear {
+  transform: skew(0.7deg, -0.35deg);
+}
+
+.res-shell-healing {
+  animation: res_shell_heal var(--res-shell-heal-ms) ease-out both;
+}
+
+.res-shell-healing::before,
+.res-shell-healing::after {
+  animation: res_shell_overlay_tear var(--res-shell-heal-ms) ease-out reverse both;
+}
+
+.res-shell-ambient {
+  animation: res_shell_ambient 1.2s ease-in-out both;
+}
+
+.res-control-safe::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  opacity: 0;
+  border: 1px dashed rgba(255, 0, 0, 0.35);
+}
+
+.res-control-halo-active .res-control-safe::after {
+  animation: res_control_halo 460ms ease-out both;
+}
+
+.res-control-safe {
+  position: relative;
+  z-index: 20;
+}
+
+/* === RESONANCE FRACTURE LAYER === */
+.res-fracture-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 13;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.res-crack {
+  position: absolute;
+  background: linear-gradient(135deg, transparent 40%, var(--res-danger) 45%, var(--res-cyan) 55%, transparent 60%);
+  opacity: var(--res-fracture-alpha);
+  animation: res_crack_glow 2.4s ease-in-out infinite;
+}
+
+.res-crack::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: inherit;
+  filter: blur(2px);
+  opacity: 0.5;
+}
+
+.res-seam {
+  position: absolute;
+  border: 1px dashed rgba(139, 69, 19, 0.4);
+  animation: res_seam_tear 3.6s ease-in-out infinite;
+}
+
+.res-seam-vertical {
+  width: 0;
+  height: 100%;
+  border-left: 1px dashed;
+}
+
+.res-seam-horizontal {
+  height: 0;
+  width: 100%;
+  border-top: 1px dashed;
+}
+
+.res-panel-drift {
+  animation: res_panel_drift 8s ease-in-out infinite;
+}
+
+/* === RESONANCE PULSE LAYER === */
+.res-pulse-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.res-pulse-band {
+  position: absolute;
+  height: 5px;
+  background: linear-gradient(90deg, transparent 0%, var(--res-danger) 20%, var(--res-cyan) 50%, var(--res-danger) 80%, transparent 100%);
+  opacity: 0;
+  animation: res_pulse 4.8s ease-in-out infinite;
+}
+
+.res-ghost-offset {
+  position: absolute;
+  animation: res_ghost_snap 2.4s ease-in-out infinite;
+}
+
+.res-ghost-offset::before {
+  content: attr(data-ghost-content);
+  position: absolute;
+  color: var(--res-danger);
+  opacity: 0.33;
+  transform: translate(var(--res-ghost-offset), var(--res-ghost-offset));
+}
+
+.res-chromatic-burst {
+  animation: res_chromatic_burst 0.6s ease-out forwards;
+}
+
+/* === RESONANCE NOISE VEIL === */
+.res-noise-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  opacity: var(--res-noise-alpha);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  mix-blend-mode: overlay;
+}
+
+.res-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 255, 255, 0.15) 50%, transparent 100%);
+  animation: res_scanline_drift 6s linear infinite;
+}
+
+/* === RESONANCE FRAGMENT DEBRIS === */
+.res-fragment-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.res-fragment {
+  position: absolute;
+  padding: 4px 8px;
+  border: 1px solid rgba(139, 69, 19, 0.4);
+  background: rgba(245, 245, 220, 0.75);
+  font-family: 'VT323', monospace;
+  font-size: 11px;
+  color: #8B4513;
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.15);
+  animation: res_fragment_float 12s ease-out forwards;
+}
+
+.res-fragment::before {
+  content: '⚠';
+  margin-right: 4px;
+  color: var(--res-danger);
+}
+
+/* === INTENSITY MODIFIERS === */
+.res-low {
+  --res-fracture-alpha: 0.35;
+  --res-noise-alpha: 0.06;
+  --res-pulse-alpha: 0.18;
+  --res-ghost-offset: 1px;
+}
+
+.res-mid {
+  --res-fracture-alpha: 0.55;
+  --res-noise-alpha: 0.12;
+  --res-pulse-alpha: 0.32;
+  --res-ghost-offset: 2px;
+}
+
+.res-high {
+  --res-fracture-alpha: 0.75;
+  --res-noise-alpha: 0.2;
+  --res-pulse-alpha: 0.48;
+  --res-ghost-offset: 4px;
+}
+
+.res-extreme {
+  --res-fracture-alpha: 0.9;
+  --res-noise-alpha: 0.28;
+  --res-pulse-alpha: 0.65;
+  --res-ghost-offset: 6px;
+}
+
+/* === RESONANCE TRIGGER STATES === */
+.res-burst-active .res-pulse-band {
+  animation-duration: 1.2s;
+}
+
+.res-burst-active .res-chromatic-burst {
+  animation-duration: 0.3s;
+}
+
+.res-event-pulse .res-crack,
+.res-event-pulse .res-seam {
+  animation-duration: 0.8s;
+}
+
+/* === PAGE-SPECIFIC RESONANCE DENSITIES === */
+.res-density-sparse .res-fragment { display: none; }
+.res-density-sparse .res-fragment:nth-child(3n+1) { display: block; }
+
+.res-density-medium .res-fragment:nth-child(4n) { display: none; }
+
+.res-density-dense .res-fragment { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .res-crack,
+  .res-seam,
+  .res-panel-drift,
+  .res-shell-breaking,
+  .res-shell-healing,
+  .res-shell-ambient,
+  .res-pulse-band,
+  .res-ghost-offset,
+  .res-chromatic-burst,
+  .res-scanline,
+  .res-fragment {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* === RESONANCE + SKIN COUPLING === */
+.skin-mutate-pulse .res-pulse-layer {
+  animation: res_chromatic_burst 0.48s ease-out;
+}
+
+.skin-mutate-pulse .res-fracture-layer {
+  animation: res_fault_shift 0.36s ease-out;
+}

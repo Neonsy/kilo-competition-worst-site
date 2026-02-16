@@ -15,6 +15,11 @@ import { FakeBrowserChrome } from '@/components/FakeBrowserChrome';
 import { FocusSaboteur } from '@/components/FocusSaboteur';
 import { ClipboardSaboteur } from '@/components/ClipboardSaboteur';
 import { DragFrictionField } from '@/components/DragFrictionField';
+import ResonanceFractureLayer from '@/components/ResonanceFractureLayer';
+import ResonancePulseLayer from '@/components/ResonancePulseLayer';
+import UIFragmentDebris from '@/components/UIFragmentDebris';
+import SignalNoiseVeil from '@/components/SignalNoiseVeil';
+import ResonanceShellCorruptor from '@/components/ResonanceShellCorruptor';
 import { LoadingLabyrinthButton, LoadingLabyrinthMetrics } from '@/components/LoadingLabyrinthButton';
 import { BureaucracyQueue } from '@/components/BureaucracyQueue';
 import { MazeOfConsent } from '@/components/MazeOfConsent';
@@ -27,6 +32,7 @@ import { getBadgeByScore } from '@/data/badges';
 import { getPhaseByStep, scheduleTourEvent, TourEvent } from '@/data/tourEvents';
 import { MinigameId } from '@/data/minigames';
 import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutationRule, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
+import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
 
 type TourAnswerValue = string | number | boolean | string[] | IntegrityAnswer | MinigameResult;
 
@@ -454,6 +460,7 @@ function TourContent() {
   const [nowTick, setNowTick] = useState(Date.now());
   const [focusArmSignal, setFocusArmSignal] = useState(0);
   const [skinPulseModule, setSkinPulseModule] = useState<SkinModule | null>(null);
+  const [pulseState, setPulseState] = useState(initialResonancePulseState);
   const [feed, setFeed] = useState<string[]>(['Hostility engine armed.', 'Route entropy rising.']);
 
   const exhibitParam = searchParams.get('exhibit');
@@ -466,6 +473,19 @@ function TourContent() {
     () =>
       Object.values(runState.interactionState.minigameStats).reduce((sum, item) => sum + (item.passed ? 1 : 0), 0),
     [runState.interactionState.minigameStats]
+  );
+  const resonanceIntensity = Math.min(
+    0.95,
+    (phase === 1 ? 0.38 : phase === 2 ? 0.58 : 0.82) +
+      runState.strikes * 0.02 +
+      runState.interactionState.loadingDebt * 0.01
+  );
+  const resonanceSafeZones = useMemo(
+    () => [
+      { x: 14, y: 24, w: 72, h: 45 },
+      { x: 24, y: 66, w: 52, h: 16 },
+    ],
+    []
   );
 
   useEffect(() => {
@@ -484,6 +504,10 @@ function TourContent() {
 
   const pushFeed = useCallback((line: string) => {
     setFeed(prev => [line, ...prev].slice(0, 8));
+  }, []);
+
+  const pushPulse = useCallback((kind: 'event' | 'cursor' | 'loading' | 'minigame' | 'mutation', strength: number) => {
+    setPulseState(prev => emitPulse(prev, kind, strength));
   }, []);
 
   const triggerSkinMutation = useCallback(
@@ -505,12 +529,14 @@ function TourContent() {
         },
       });
       setSkinPulseModule(target);
+      pushPulse('mutation', Math.min(1, 0.45 + (bypassChance ? 0.25 : 0.12)));
       pushFeed(`Design roulette pulse (${reason}) mutated ${target}.`);
     },
     [
       phase,
       pityPass,
       pushFeed,
+      pushPulse,
       runState.eventSeed,
       runState.interactionState.activeSkinMap,
       runState.interactionState.mutationCooldownUntil,
@@ -539,6 +565,7 @@ function TourContent() {
     setStarted(true);
     setAnswers({});
     setError(null);
+    setPulseState(initialResonancePulseState);
     setFeed([`Session started with seed ${seed}.`, exhibitParam ? `Prefetch hint: ${exhibitParam}` : 'No prefetch hint.']);
     dispatch({ type: 'RESET', seed, startedAt: Date.now() });
   };
@@ -556,6 +583,15 @@ function TourContent() {
 
       dispatch({ type: 'APPLY_EVENT', event, phase: eventPhase, now, lockoutMs, freezeMs });
       pushFeed(`Event: ${event.copy}`);
+      if (event.effect === 'cursor-desync' || event.effect === 'cursor-global-shift') {
+        pushPulse('cursor', Math.min(1, 0.52 + eventPhase * 0.12));
+      } else if (event.effect === 'loading-loop' || event.effect === 'loading-regress' || event.effect === 'loading-stall') {
+        pushPulse('loading', Math.min(1, 0.48 + eventPhase * 0.14));
+      } else if (event.effect === 'minigame-interrupt') {
+        pushPulse('minigame', Math.min(1, 0.56 + eventPhase * 0.12));
+      } else if (event.effect !== 'skin-mutate') {
+        pushPulse('event', Math.min(1, 0.34 + eventPhase * 0.16));
+      }
       if (event.effect === 'focus-trap' || event.effect === 'minigame-interrupt') {
         setFocusArmSignal(now + eventPhase);
       }
@@ -569,7 +605,7 @@ function TourContent() {
       if (event.effect === 'strike') setError(event.copy);
       return false;
     },
-    [pushFeed, seeded, triggerSkinMutation]
+    [pushFeed, pushPulse, seeded, triggerSkinMutation]
   );
 
   useEffect(() => {
@@ -694,10 +730,11 @@ function TourContent() {
       dispatch({ type: 'REGISTER_MINIGAME_PASS', gameId });
       setAnswers(prev => ({ ...prev, [currentQuestion.id]: { passed: true, meta } }));
       triggerSkinMutation('minigame-win', 'question-card', true);
+      pushPulse('minigame', 0.62);
       setError(null);
       pushFeed(`Minigame ${gameId} passed.`);
     },
-    [currentQuestion, pushFeed, triggerSkinMutation]
+    [currentQuestion, pushFeed, pushPulse, triggerSkinMutation]
   );
 
   const handleMinigameFail = useCallback(
@@ -711,6 +748,7 @@ function TourContent() {
       setError(`Minigame failed: ${gameId}. Queue penalty applied.`);
       setFocusArmSignal(Date.now() + failCount);
       triggerSkinMutation('minigame-fail', 'modals', true);
+      pushPulse('minigame', 0.82);
       pushFeed(`Minigame ${gameId} failed (${failCount}).`);
 
       if (gameId === 'captcha-gauntlet' && failCount >= 4) {
@@ -721,7 +759,7 @@ function TourContent() {
         pushFeed('Captcha pity token granted for repeated failures.');
       }
     },
-    [currentQuestion, pushFeed, runState.interactionState.loadingBypassTokens, runState.interactionState.minigameStats, triggerSkinMutation]
+    [currentQuestion, pushFeed, pushPulse, runState.interactionState.loadingBypassTokens, runState.interactionState.minigameStats, triggerSkinMutation]
   );
 
   const handleBack = useCallback(() => {
@@ -874,6 +912,7 @@ function TourContent() {
       dispatch({ type: 'REGRESS', phase: currentQuestion.phase });
       setError('Sequence drift: regression penalty applied.');
       pushFeed('Regression penalty triggered by escalation model.');
+      pushPulse('event', 0.72);
       triggerSkinMutation('regression', 'question-card', true);
       return;
     }
@@ -950,7 +989,7 @@ function TourContent() {
         <TopNav />
         <div className="flex flex-1">
           <SideNav />
-          <main className={`relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
+          <main className={`res-interaction-root relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
             <FakeBrowserChrome phase={phase} mode="tour" noiseLevel={runState.interactionState.chromeNoiseLevel * 100} onIncident={pushFeed} />
             <CursorCorruptionLayer
               phase={phase}
@@ -1002,7 +1041,41 @@ function TourContent() {
               mobileHostile
               eventPulse={runState.strikes + runState.instability + runState.suspicion + runState.interactionState.loadingDebt}
             />
-            <div className={`relative z-10 p-4 md:p-6 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4 ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}>
+            <ResonanceShellCorruptor pulseKey={pulseState.key} intensity={resonanceIntensity} profile="heavy" />
+            <div className="res-layer-stack">
+              <SignalNoiseVeil
+                severity={Math.min(0.95, resonanceIntensity * 0.72)}
+                scanlines
+                noise
+                pulseKey={pulseState.key}
+                coverage="full"
+                safeZones={resonanceSafeZones}
+              />
+              <ResonanceFractureLayer
+                phase={phase}
+                intensity={resonanceIntensity}
+                pulseKey={pulseState.key}
+                coverage="mixed"
+                safeZones={resonanceSafeZones}
+              />
+              <ResonancePulseLayer
+                phase={phase}
+                intensity={Math.min(0.95, resonanceIntensity + 0.04)}
+                activeBurst={runState.interactionState.loadingFalseCompletes > 0}
+                pulseKey={pulseState.key}
+                coverage="full"
+                safeZones={resonanceSafeZones}
+              />
+              <UIFragmentDebris
+                mode="tour"
+                density={phase === 3 ? 'dense' : 'medium'}
+                intensity={Math.min(0.95, resonanceIntensity)}
+                pulseKey={pulseState.key}
+                coverage="full"
+                safeZones={resonanceSafeZones}
+              />
+            </div>
+            <div className={`res-shell relative z-10 p-4 md:p-6 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4 ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}>
               <section data-focus-zone data-clipboard-hostile onMouseEnter={() => triggerSkinMutation('hover', 'question-card')}>
                 <ProgressBar
                   currentStep={runState.step}
@@ -1033,7 +1106,7 @@ function TourContent() {
                   />
                 )}
 
-                <div className={`flex justify-between items-center mt-6 ${getSkinClass(skinMap.buttons)} ${skinPulseModule === 'buttons' ? getSkinPulseClass(skinMap.buttons) : ''}`} data-trap-zone="tour-nav-actions">
+                <div className={`res-control-safe flex justify-between items-center mt-6 ${getSkinClass(skinMap.buttons)} ${skinPulseModule === 'buttons' ? getSkinPulseClass(skinMap.buttons) : ''}`} data-trap-zone="tour-nav-actions">
                   <HellButton variant="win95" label={`← Back (click ${4 - (backClicks % 4)} more times)`} onClick={handleBack} size="small" />
                   <div className="flex gap-2 items-center">
                     <HellButton
@@ -1055,6 +1128,12 @@ function TourContent() {
                       onMetrics={(metrics: LoadingLabyrinthMetrics) => {
                         dispatch({ type: 'APPLY_LOADING_METRICS', metrics });
                         if (metrics.loops > 0 || metrics.regressions > 0 || metrics.falseCompletes > 0) {
+                          pushPulse(
+                            'loading',
+                            Math.min(1, 0.48 + metrics.loops * 0.08 + metrics.regressions * 0.12 + metrics.falseCompletes * 0.1)
+                          );
+                        }
+                        if (metrics.loops > 0 || metrics.regressions > 0 || metrics.falseCompletes > 0) {
                           triggerSkinMutation('labyrinth', 'modals', true);
                         }
                       }}
@@ -1064,7 +1143,7 @@ function TourContent() {
                 </div>
 
                 {(lockoutMs > 0 || freezeMs > 0) && (
-                  <div className={`mt-3 p-2 text-xs bg-[#FFFF99] border-2 border-dashed border-[#FF0000] text-[#8B4513] ${getSkinClass(skinMap.modals)} ${skinPulseModule === 'modals' ? getSkinPulseClass(skinMap.modals) : ''}`} style={{ fontFamily: "'VT323', monospace" }}>
+                  <div className={`res-control-safe mt-3 p-2 text-xs bg-[#FFFF99] border-2 border-dashed border-[#FF0000] text-[#8B4513] ${getSkinClass(skinMap.modals)} ${skinPulseModule === 'modals' ? getSkinPulseClass(skinMap.modals) : ''}`} style={{ fontFamily: "'VT323', monospace" }}>
                     {lockoutMs > 0 && <p>Lockout active: {Math.ceil(lockoutMs / 1000)}s remaining.</p>}
                     {freezeMs > 0 && <p>Freeze burst active: {Math.ceil(freezeMs / 1000)}s remaining.</p>}
                   </div>
@@ -1157,7 +1236,7 @@ function QuestionCard({
   const style = styles[question.questionNumber % styles.length];
 
   return (
-    <div className={`${style.bg} ${style.border} p-6 shadow-ugly relative ${className || ''}`} style={{ transform: `rotate(${(Math.random() - 0.5) * 2}deg)` }}>
+    <div className={`res-control-safe ${style.bg} ${style.border} p-6 shadow-ugly relative ${className || ''}`} style={{ transform: `rotate(${(Math.random() - 0.5) * 2}deg)` }}>
       <div className="absolute -top-4 -left-4 w-12 h-12 bg-[#FF69B4] rounded-full flex items-center justify-center text-white font-bold shadow-lg animate-pulse" style={{ fontFamily: "'Bangers', cursive" }}>#{question.questionNumber}</div>
 
       <h2 className="text-2xl md:text-3xl mb-2 text-center" style={{ fontFamily: "'Bangers', cursive", color: '#8B4513', textShadow: '2px 2px 0 #FFFF99' }}>{question.title}</h2>

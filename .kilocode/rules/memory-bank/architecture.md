@@ -38,18 +38,25 @@ src/
 │   ├── FocusSaboteur.tsx           # Enter/focus nuisance layer with guardrails
 │   ├── ClipboardSaboteur.tsx       # Copy/paste perturbation with field safety valve
 │   ├── DragFrictionField.tsx       # Drag dampening and single snap-back behavior
+│   ├── ResonanceFractureLayer.tsx  # Cracks, seam tears, panel drift (decorative)
+│   ├── ResonancePulseLayer.tsx     # Red resonance bands, ghost bursts, chromatic flashes (decorative)
+│   ├── UIFragmentDebris.tsx        # Fake detached UI fragments floating in whitespace (decorative)
+│   ├── SignalNoiseVeil.tsx         # Scanlines, noise texture, low-alpha flicker (decorative)
+│   ├── ResonanceShellCorruptor.tsx # Pulse-driven shell break/heal states on real `.res-shell` containers
 │   ├── Navigation.tsx              # Multi-nav mismatch + misroutes
 │   ├── Popups.tsx                  # Aggressive popup triggers/chains
 │   ├── ProgressBar.tsx             # Lying progress + penalty telemetry
 │   ├── HellButton.tsx              # Hostile buttons and fake processing
 │   └── HostileForm.tsx             # Hostile form controls
-└── data/
+├── data/
     ├── questions.ts                # 18 questions + minigame/skin/mutation metadata
     ├── tourEvents.ts               # Phase-scoped deterministic hostility events
     ├── hostilityPrimitives.ts      # Primitive config probabilities/cooldowns/guardrails
     ├── skinPacks.ts                # Module skin roulette packs + mutation rules
     ├── minigames.ts                # Minigame specs/rules/win conditions
     └── ...                         # badges/exhibits/disclaimers/validations
+└── lib/
+    └── resonancePulseBus.ts        # Timestamp pulse state helper (`emitPulse`) for retriggerable resonance bursts
 ```
 
 ## Runtime Hostility Pattern
@@ -68,6 +75,13 @@ src/
   - `recovery tokens`, `pity-pass threshold`, `hard regression cap`
 - Event scheduling uses `tourEvents.ts` with phase-aware probabilities and cooldowns.
 - Primitive runtime behavior uses `hostilityPrimitives.ts` defaults and reducer/event hooks.
+- Resonance visuals use a timestamp pulse bus (`resonancePulseBus.ts`) and `pulseKey` props so bursts retrigger on every hostile incident rather than one-shot boolean gates.
+- Layering contract keeps visuals readable and interactive:
+  - `.res-layer-stack` renders resonance overlays above shells (`.res-shell`)
+  - `.res-control-safe` keeps primary controls above resonance overlays
+- Shell corruption architecture:
+  - `ResonanceShellCorruptor.tsx` listens to `pulseKey` and applies short-lived break/heal classes to `.res-shell`
+  - Root-level `.res-control-halo-active` pulses edge halos around `.res-control-safe` controls without intercepting pointer events
 - Required minigame gates are embedded directly in tour question steps:
   - Step 6: Bureaucracy Queue
   - Step 11: Maze of Consent

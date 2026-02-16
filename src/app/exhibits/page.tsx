@@ -10,9 +10,15 @@ import { FakeBrowserChrome } from '@/components/FakeBrowserChrome';
 import { TargetedCursorLayer } from '@/components/TargetedCursorLayer';
 import { CursorCorruptionLayer } from '@/components/CursorCorruptionLayer';
 import { DragFrictionField } from '@/components/DragFrictionField';
+import ResonanceFractureLayer from '@/components/ResonanceFractureLayer';
+import ResonancePulseLayer from '@/components/ResonancePulseLayer';
+import UIFragmentDebris from '@/components/UIFragmentDebris';
+import SignalNoiseVeil from '@/components/SignalNoiseVeil';
+import ResonanceShellCorruptor from '@/components/ResonanceShellCorruptor';
 import { exhibits, exhibitCategories } from '@/data/exhibits';
 import { getRandomDisclaimer } from '@/data/disclaimers';
 import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
+import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
 
 type ViewMode = 'grid' | 'list' | 'chaos';
 
@@ -28,6 +34,7 @@ export default function ExhibitsPage() {
   const [driftDial, setDriftDial] = useState(28);
   const [skinMap, setSkinMap] = useState(() => createModuleSkinMap(Date.now()));
   const [skinPulseModule, setSkinPulseModule] = useState<SkinModule | null>(null);
+  const [pulseState, setPulseState] = useState(initialResonancePulseState);
   const disclaimer = getRandomDisclaimer();
 
   // Randomly switch view mode
@@ -47,9 +54,11 @@ export default function ExhibitsPage() {
     const interval = setInterval(() => {
       if (Math.random() > 0.74) {
         setUnstableShift(Math.floor((Math.random() - 0.5) * 16));
+        setPulseState(prev => emitPulse(prev, 'event', 0.54));
       }
       if (Math.random() > 0.83) {
         setMaintenanceUntil(Date.now() + 2200 + Math.floor(Math.random() * 2000));
+        setPulseState(prev => emitPulse(prev, 'loading', 0.68));
       }
       if (Math.random() > 0.55) {
         setIncidentTape(prev => prev + 1);
@@ -62,7 +71,14 @@ export default function ExhibitsPage() {
     const target = module || randomModule(Date.now() + incidentTape + randomSwitches);
     setSkinMap(prev => mutateModuleSkinMap(prev, target, Date.now()));
     setSkinPulseModule(target);
+    setPulseState(prev => emitPulse(prev, 'mutation', 0.56));
   }, [incidentTape, randomSwitches]);
+
+  const resonanceIntensity = Math.min(0.94, 0.5 + incidentTape * 0.025 + randomSwitches * 0.04);
+  const resonanceSafeZones = [
+    { x: 10, y: 22, w: 80, h: 40 },
+    { x: 12, y: 64, w: 76, h: 26 },
+  ];
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -109,15 +125,22 @@ export default function ExhibitsPage() {
         <div className="flex flex-1">
           <SideNav />
           
-          <main className={`relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
+          <main className={`res-interaction-root relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
             <FakeBrowserChrome phase={2} mode="exhibits" noiseLevel={incidentTape + randomSwitches * 4} />
             <TargetedCursorLayer phase={2} pityPass={false} active />
             <CursorCorruptionLayer phase={2} pityPass={false} active eventPulse={incidentTape + randomSwitches} />
             <DragFrictionField phase={2} pityPass={false} active resistanceBoost={Math.min(20, incidentTape)} />
             <LivingOverlay mode="exhibits" intensity="medium" mobileHostile eventPulse={incidentTape + randomSwitches} />
+            <ResonanceShellCorruptor pulseKey={pulseState.key} intensity={resonanceIntensity} profile="medium" />
+            <div className="res-layer-stack">
+              <SignalNoiseVeil severity={Math.min(0.92, resonanceIntensity * 0.72)} scanlines noise pulseKey={pulseState.key} coverage="full" safeZones={resonanceSafeZones} />
+              <ResonanceFractureLayer phase={2} intensity={resonanceIntensity} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
+              <ResonancePulseLayer phase={2} intensity={Math.min(0.96, resonanceIntensity + 0.05)} pulseKey={pulseState.key} coverage="full" safeZones={resonanceSafeZones} />
+              <UIFragmentDebris mode="exhibits" density="medium" intensity={Math.min(0.92, resonanceIntensity)} pulseKey={pulseState.key} coverage="full" safeZones={resonanceSafeZones} />
+            </div>
             {/* Header */}
             <section 
-              className={`p-4 md:p-8 bg-gradient-to-r from-[#FF69B4] to-[#00FFFF] ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
+              className={`res-shell p-4 md:p-8 bg-gradient-to-r from-[#FF69B4] to-[#00FFFF] ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
               onMouseEnter={() => mutateSkin('nav')}
               style={{
                 backgroundImage: `
@@ -194,7 +217,7 @@ export default function ExhibitsPage() {
                 </div>
 
                 {/* View Mode Toggle */}
-                <div className={`flex flex-wrap gap-2 mb-4 ${getSkinClass(skinMap.buttons)} ${skinPulseModule === 'buttons' ? getSkinPulseClass(skinMap.buttons) : ''}`} data-trap-zone="exhibits-view-mode">
+                <div className={`res-control-safe flex flex-wrap gap-2 mb-4 ${getSkinClass(skinMap.buttons)} ${skinPulseModule === 'buttons' ? getSkinPulseClass(skinMap.buttons) : ''}`} data-trap-zone="exhibits-view-mode">
                   <span 
                     className="text-sm"
                     style={{ fontFamily: "'Press Start 2P', cursive", fontSize: '8px' }}
@@ -206,6 +229,7 @@ export default function ExhibitsPage() {
                       key={mode}
                       onClick={() => {
                         mutateSkin('buttons');
+                        setPulseState(prev => emitPulse(prev, 'event', 0.56));
                         handleViewModeChange(mode);
                       }}
                       className={`
@@ -306,6 +330,7 @@ export default function ExhibitsPage() {
                       setDriftDial(next);
                       setUnstableShift(Math.floor((next - 50) / 2));
                       mutateSkin('inputs');
+                      setPulseState(prev => emitPulse(prev, 'event', 0.5));
                     }}
                     className="slider-evil w-full"
                   />

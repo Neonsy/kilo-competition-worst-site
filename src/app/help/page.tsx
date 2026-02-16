@@ -9,8 +9,14 @@ import { LivingOverlay } from '@/components/LivingOverlay';
 import { FakeBrowserChrome } from '@/components/FakeBrowserChrome';
 import { TargetedCursorLayer } from '@/components/TargetedCursorLayer';
 import { CursorCorruptionLayer } from '@/components/CursorCorruptionLayer';
+import ResonanceFractureLayer from '@/components/ResonanceFractureLayer';
+import ResonancePulseLayer from '@/components/ResonancePulseLayer';
+import UIFragmentDebris from '@/components/UIFragmentDebris';
+import SignalNoiseVeil from '@/components/SignalNoiseVeil';
+import ResonanceShellCorruptor from '@/components/ResonanceShellCorruptor';
 import { getRandomDisclaimer } from '@/data/disclaimers';
 import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
+import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
 
 interface FAQItem {
   question: string;
@@ -100,6 +106,7 @@ export default function HelpPage() {
   const [chatInput, setChatInput] = useState('');
   const [skinMap, setSkinMap] = useState(() => createModuleSkinMap(Date.now()));
   const [skinPulseModule, setSkinPulseModule] = useState<SkinModule | null>(null);
+  const [pulseState, setPulseState] = useState(initialResonancePulseState);
 
   const categories = ['All', 'General', 'Navigation', 'Technical', 'Privacy', 'Tour', 'Support'];
   
@@ -117,6 +124,7 @@ export default function HelpPage() {
     
     setChatMessages(prev => [...prev, { text: chatInput, isBot: false }]);
     setChatInput('');
+    setPulseState(prev => emitPulse(prev, 'event', 0.52));
     
     // Bot response after delay
     setTimeout(() => {
@@ -134,6 +142,7 @@ export default function HelpPage() {
         text: responses[Math.floor(Math.random() * responses.length)], 
         isBot: true 
       }]);
+      setPulseState(prev => emitPulse(prev, 'event', 0.46));
     }, 1000 + Math.random() * 2000);
   };
 
@@ -141,7 +150,13 @@ export default function HelpPage() {
     const target = module || randomModule(Date.now() + chatMessages.length + (expandedFAQ || 0));
     setSkinMap(prev => mutateModuleSkinMap(prev, target, Date.now()));
     setSkinPulseModule(target);
+    setPulseState(prev => emitPulse(prev, 'mutation', 0.48));
   }, [chatMessages.length, expandedFAQ]);
+
+  const resonanceIntensity = Math.min(0.78, 0.28 + chatMessages.length * 0.02 + (expandedFAQ !== null ? 0.08 : 0));
+  const resonanceSafeZones = [
+    { x: 12, y: 24, w: 76, h: 48 },
+  ];
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -162,14 +177,21 @@ export default function HelpPage() {
         <TopNav />
         <div className="flex flex-1">
           <SideNav />
-          <main className={`relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
+          <main className={`res-interaction-root relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
             <FakeBrowserChrome phase={1} mode="home" noiseLevel={chatMessages.length} />
             <TargetedCursorLayer phase={1} pityPass={false} active />
             <CursorCorruptionLayer phase={1} pityPass={false} active eventPulse={chatMessages.length} />
             <LivingOverlay mode="home" intensity="low" mobileHostile eventPulse={chatMessages.length} />
+            <ResonanceShellCorruptor pulseKey={pulseState.key} intensity={resonanceIntensity} profile="light" />
+            <div className="res-layer-stack">
+              <SignalNoiseVeil severity={Math.min(0.62, resonanceIntensity * 0.72)} scanlines={false} noise pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
+              <ResonanceFractureLayer phase={1} intensity={resonanceIntensity} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
+              <ResonancePulseLayer phase={1} intensity={Math.min(0.72, resonanceIntensity + 0.04)} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
+              <UIFragmentDebris mode="help" density="medium" intensity={Math.min(0.68, resonanceIntensity)} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
+            </div>
             {/* Header */}
             <section 
-              className={`p-4 md:p-8 bg-gradient-to-r from-[#7BA05B] to-[#8B4513] ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
+              className={`res-shell p-4 md:p-8 bg-gradient-to-r from-[#7BA05B] to-[#8B4513] ${getSkinClass(skinMap.nav)} ${skinPulseModule === 'nav' ? getSkinPulseClass(skinMap.nav) : ''}`}
               onMouseEnter={() => mutateSkin('nav')}
               style={{ fontFamily: "'Bangers', cursive" }}
             >
@@ -185,7 +207,7 @@ export default function HelpPage() {
             </section>
 
             {/* Quick Links - Different styles */}
-            <section className="p-4 bg-[#F5F5DC] border-b-4 border-[#808080]">
+            <section className="res-control-safe p-4 bg-[#F5F5DC] border-b-4 border-[#808080]">
               <div className="flex flex-wrap justify-center gap-2">
                 <a href="#faq" onMouseEnter={() => mutateSkin('buttons')} className="px-4 py-2 bg-[#FF69B4] text-white">📋 FAQ</a>
                 <a href="#contact" className="skeuomorphic px-4 py-2">📧 Contact</a>
@@ -209,7 +231,10 @@ export default function HelpPage() {
                   {categories.map(cat => (
                     <button
                       key={cat}
-                      onClick={() => setSelectedCategory(cat)}
+                      onClick={() => {
+                        setSelectedCategory(cat);
+                        setPulseState(prev => emitPulse(prev, 'event', 0.42));
+                      }}
                       className={`
                         px-3 py-1 text-sm
                         ${selectedCategory === cat 
@@ -234,7 +259,10 @@ export default function HelpPage() {
                       }}
                     >
                       <button
-                        onClick={() => setExpandedFAQ(expandedFAQ === index ? null : index)}
+                        onClick={() => {
+                          setExpandedFAQ(expandedFAQ === index ? null : index);
+                          setPulseState(prev => emitPulse(prev, 'event', 0.38));
+                        }}
                         className="w-full p-4 text-left flex justify-between items-center"
                         style={{ fontFamily: "'Comic Neue', cursive" }}
                       >

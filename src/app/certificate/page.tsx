@@ -5,8 +5,14 @@ import { useRouter } from 'next/navigation';
 import { TopNav, SideNav, FooterNav, FloatingWidget } from '@/components/Navigation';
 import { PopupManager } from '@/components/Popups';
 import { Certificate } from '@/components/Certificate';
+import ResonanceFractureLayer from '@/components/ResonanceFractureLayer';
+import ResonancePulseLayer from '@/components/ResonancePulseLayer';
+import UIFragmentDebris from '@/components/UIFragmentDebris';
+import SignalNoiseVeil from '@/components/SignalNoiseVeil';
+import ResonanceShellCorruptor from '@/components/ResonanceShellCorruptor';
 import { Badge } from '@/data/badges';
 import { Exhibit } from '@/data/exhibits';
+import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
 
 interface TourResults {
   answers: Record<string, unknown>;
@@ -68,6 +74,7 @@ export default function CertificatePage() {
   const [results, setResults] = useState<TourResults | null>(null);
   const [exhibits, setExhibits] = useState<Exhibit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pulseState, setPulseState] = useState(initialResonancePulseState);
 
   useEffect(() => {
     // Load results from sessionStorage
@@ -93,6 +100,11 @@ export default function CertificatePage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!results?.runStats) return;
+    setPulseState(prev => emitPulse(prev, 'event', 0.34));
+  }, [results]);
 
   if (loading) {
     return (
@@ -163,10 +175,17 @@ export default function CertificatePage() {
         <TopNav />
         <div className="flex flex-1">
           <SideNav />
-          <main className="flex-1 overflow-x-hidden">
+          <main className="res-interaction-root flex-1 overflow-x-hidden">
+            <ResonanceShellCorruptor pulseKey={pulseState.key} intensity={0.24} profile="light" enableAmbient={false} />
+            <div className="res-layer-stack">
+              <SignalNoiseVeil severity={0.2} scanlines={false} noise pulseKey={pulseState.key} coverage="mixed" safeZones={[{ x: 16, y: 20, w: 68, h: 58 }]} />
+              <ResonanceFractureLayer phase={1} intensity={0.19} pulseKey={pulseState.key} coverage="mixed" safeZones={[{ x: 16, y: 20, w: 68, h: 58 }]} />
+              <ResonancePulseLayer phase={1} intensity={0.22} pulseKey={pulseState.key} coverage="mixed" safeZones={[{ x: 16, y: 20, w: 68, h: 58 }]} />
+              <UIFragmentDebris mode="certificate" density="sparse" intensity={0.2} pulseKey={pulseState.key} coverage="mixed" safeZones={[{ x: 16, y: 20, w: 68, h: 58 }]} />
+            </div>
             {/* Header */}
             <section 
-              className="p-4 md:p-8 text-center bg-gradient-to-b from-[#FFD700] to-[#FFA500]"
+              className="res-shell p-4 md:p-8 text-center bg-gradient-to-b from-[#FFD700] to-[#FFA500]"
               style={{
                 backgroundImage: `
                   radial-gradient(circle at 50% 50%, rgba(255,255,255,0.3) 0%, transparent 70%)
@@ -191,7 +210,7 @@ export default function CertificatePage() {
             </section>
 
             {/* Certificate */}
-            <section className="p-4 md:p-8 bg-[#F5F5DC]">
+            <section className="res-control-safe p-4 md:p-8 bg-[#F5F5DC]">
               <Certificate
                 name={name}
                 score={results.score}

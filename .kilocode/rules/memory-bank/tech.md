@@ -190,3 +190,88 @@ npm run build      # Next production build
   - `npm run typecheck` ✅
   - `npm run lint` ✅
   - `npm run build` ✅
+
+## Resonance Visual Layer (2026-02-16)
+
+- Added decorative "intrusive thought" visual components for UI-breaking-apart aesthetic:
+  - `src/components/ResonanceFractureLayer.tsx` - cracks, seam tears, panel drift in peripheral zones
+  - `src/components/ResonancePulseLayer.tsx` - red resonance bands, ghost duplication, chromatic bursts
+  - `src/components/UIFragmentDebris.tsx` - fake detached UI fragments floating in whitespace
+  - `src/components/SignalNoiseVeil.tsx` - scanlines, noise texture, low-alpha flicker
+- Extended `src/app/globals.css` with:
+  - Resonance CSS tokens (`--res-danger`, `--res-void`, `--res-paper`, `--res-cyan`, `--res-fracture-alpha`, `--res-noise-alpha`, `--res-pulse-alpha`, `--res-ghost-offset`)
+  - Resonance keyframes (`res_pulse`, `res_fault_shift`, `res_scanline_drift`, `res_ghost_snap`, `res_fragment_float`, `res_crack_glow`, `res_seam_tear`, `res_chromatic_burst`, `res_panel_drift`)
+  - Resonance classes (`.res-fracture-layer`, `.res-crack`, `.res-seam`, `.res-pulse-layer`, `.res-pulse-band`, `.res-ghost-offset`, `.res-noise-veil`, `.res-scanline`, `.res-fragment-layer`, `.res-fragment`)
+  - Intensity modifiers (`.res-low`, `.res-mid`, `.res-high`, `.res-extreme`)
+  - Safety utility (`.res-decorative { pointer-events:none; user-select:none; }`)
+- Wired resonance layers into all pages:
+  - Tour: intensity driven by phase, strikes, instability, suspicion, loading debt
+  - Home: lighter intensity driven by incident index and skin pulses
+  - Exhibits: intensity driven by incident tape and random switches
+  - Help/Settings/Certificate: minimal decorative-only intensity
+- All resonance layers are decorative-only (pointer-events: none) and respect z-index hierarchy
+
+## Resonance Fix Merge Pass (2026-02-17)
+
+- Added `src/lib/resonancePulseBus.ts`:
+  - `ResonancePulseKind`
+  - `ResonancePulseState`
+  - `emitPulse(prev, kind, strength)` timestamp-key retrigger helper
+- Updated resonance components (`ResonanceFractureLayer`, `ResonancePulseLayer`, `SignalNoiseVeil`, `UIFragmentDebris`) to support:
+  - `pulseKey?: number` (preferred trigger)
+  - `safeZones?: Array<{x,y,w,h}>`
+  - `coverage?: 'peripheral' | 'mixed' | 'full'`
+  - Backward-compatible `eventPulse?: boolean`
+- Added global resonance layering contract in `src/app/globals.css`:
+  - `.res-interaction-root`
+  - `.res-layer-stack` (above shells, non-interactive)
+  - `.res-shell`
+  - `.res-control-safe` (critical controls above resonance)
+- Applied `pulseKey` wiring and layer contract across:
+  - `src/app/tour/page.tsx`
+  - `src/app/page.tsx`
+  - `src/app/exhibits/page.tsx`
+  - `src/app/help/page.tsx`
+  - `src/app/settings/page.tsx`
+  - `src/app/certificate/page.tsx`
+- Increased resonance readability/coverage:
+  - higher base intensity with phase-aware boosts
+  - mixed interior+edge fracture/debris placement
+  - pulse-band center crossing and stronger pulse-only scanline contrast
+- Verification performed after merge pass:
+  - `npm run typecheck` ✅
+  - `npm run lint` ✅
+  - `npm run build` ✅
+
+## Resonance Shell Corruption Pass (2026-02-17)
+
+- Added `src/components/ResonanceShellCorruptor.tsx`:
+  - Pulse-driven shell corruption state machine (break -> heal)
+  - Profile tuning (`light|medium|heavy`) by page scope
+  - Ambient micro-corruption cadence for organic instability
+- Extended `src/app/globals.css` with shell corruption primitives:
+  - keyframes: `res_shell_break`, `res_shell_heal`, `res_shell_overlay_tear`, `res_shell_ambient`, `res_control_halo`
+  - classes: `res-shell-breaking`, `res-shell-crack-snap`, `res-shell-fault-warp`, `res-shell-shear`, `res-shell-healing`, `res-shell-ambient`, `res-control-halo-active`
+- Wired shell corruption to existing pulse bus on all routed pages:
+  - `src/app/tour/page.tsx` (heavy profile)
+  - `src/app/page.tsx` + `src/app/exhibits/page.tsx` (medium)
+  - `src/app/help/page.tsx` + `src/app/settings/page.tsx` (light)
+  - `src/app/certificate/page.tsx` (light, ambient disabled)
+- Verification performed:
+  - `npm run typecheck` ✅
+  - `npm run lint` ✅
+  - `npm run build` ✅
+
+## Resonance Light-Profile Tuning (2026-02-17)
+
+- Tuned `light` profile in `src/components/ResonanceShellCorruptor.tsx`:
+  - Increased break/heal windows and ambient cadence frequency
+  - Increased max target count and added profile-scaled intensity amplification
+- Tuned Settings route visibility in `src/app/settings/page.tsx`:
+  - Raised resonance baseline intensity
+  - Reduced safe-zone footprint for stronger visible activity
+  - Marked settings grid section as `res-shell` so break/heal applies beyond header
+- Re-verified:
+  - `npm run typecheck` ✅
+  - `npm run lint` ✅
+  - `npm run build` ✅
