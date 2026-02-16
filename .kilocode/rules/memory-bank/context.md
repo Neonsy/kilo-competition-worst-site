@@ -1,88 +1,71 @@
-# Active Context: Next.js Starter Template
+# Active Context: Museum of Bad Decisions
 
 ## Current State
 
-**Template Status**: ✅ WIP page created
+**Project Status**: ✅ COMPLETE - The Museum of Bad Decisions is fully built and functional!
 
-The home page now displays a simple "Work in Progress" placeholder with a coming soon message.
+A deliberately awful website that masquerades as an interactive museum of terrible ideas. The core functionality (Tour Wizard) works perfectly while every aspect of UX/UI is designed to frustrate, confuse, and amuse users.
 
 ## Recently Completed
 
 - [x] Base Next.js 16 setup with App Router
 - [x] TypeScript configuration with strict mode
-- [x] Tailwind CSS 4 integration
-- [x] ESLint configuration
-- [x] Memory bank documentation
-- [x] Recipe system for common features
-- [x] Added WIP placeholder page
+- [x] Tailwind CSS 4 integration with custom chaos styles
+- [x] 10+ Google Fonts loaded (Comic Neue, Press Start 2P, VT323, Creepster, etc.)
+- [x] Global CSS with animations (blinking, marquee, pulse, shake, rainbow)
+- [x] Navigation chaos (4 placements with different labels)
+- [x] Popup system with aggressive interruptions
+- [x] HellButton component (8+ variants, moving on hover)
+- [x] HostileForm component (hostile validation, sliders that jump)
+- [x] Home page with overwhelming hero section
+- [x] Exhibits page with grid/list/chaos view modes
+- [x] Tour Wizard with 8 hostile questions
+- [x] Regret Certificate with fake download
+- [x] Help page with unhelpful FAQ and broken contact form
+- [x] Settings page with meaningless toggles
 
 ## Current Structure
 
 | File/Directory | Purpose | Status |
 |----------------|---------|--------|
-| `src/app/page.tsx` | Home page | ✅ Ready |
-| `src/app/layout.tsx` | Root layout | ✅ Ready |
-| `src/app/globals.css` | Global styles | ✅ Ready |
-| `.kilocode/` | AI context & recipes | ✅ Ready |
+| `src/app/page.tsx` | Home page | ✅ Complete |
+| `src/app/exhibits/page.tsx` | Exhibits listing | ✅ Complete |
+| `src/app/tour/page.tsx` | Tour wizard | ✅ Complete |
+| `src/app/certificate/page.tsx` | Regret certificate | ✅ Complete |
+| `src/app/help/page.tsx` | Help/FAQ | ✅ Complete |
+| `src/app/settings/page.tsx` | Fake settings | ✅ Complete |
+| `src/components/` | Shared chaos components | ✅ Complete |
+| `src/data/` | Exhibits, questions, badges | ✅ Complete |
+| `src/app/globals.css` | Chaos styles | ✅ Complete |
 
-## Current Focus
+## Key Features Implemented
 
-The template is ready. Next steps depend on user requirements:
+### Visual Chaos
+- 10+ different fonts (Comic Neue, Bangers, VT323, Press Start 2P, etc.)
+- Conflicting color schemes (neon green, hot pink, cyan, brown)
+- Mixed alignment everywhere
+- Multiple border styles (dotted, double, bevel, inset)
+- Animated elements (blinking text, scrolling marquee, pulsing badges)
+- Tiled backgrounds, gradients, drop shadows
 
-1. What type of application to build
-2. What features are needed
-3. Design/branding preferences
+### UX Torture
+- Navigation in 4 places with different labels
+- Fake menu items that go nowhere
+- Hostile form validation ("Your name is too normal")
+- Progress bar that lies (12% → 98% → 43% → 110%)
+- Buttons that move on hover
+- Aggressive popups
+- Tooltips that block clicks
 
-## Quick Start Guide
-
-### To add a new page:
-
-Create a file at `src/app/[route]/page.tsx`:
-```tsx
-export default function NewPage() {
-  return <div>New page content</div>;
-}
-```
-
-### To add components:
-
-Create `src/components/` directory and add components:
-```tsx
-// src/components/ui/Button.tsx
-export function Button({ children }: { children: React.ReactNode }) {
-  return <button className="px-4 py-2 bg-blue-600 text-white rounded">{children}</button>;
-}
-```
-
-### To add a database:
-
-Follow `.kilocode/recipes/add-database.md`
-
-### To add API routes:
-
-Create `src/app/api/[route]/route.ts`:
-```tsx
-import { NextResponse } from "next/server";
-
-export async function GET() {
-  return NextResponse.json({ message: "Hello" });
-}
-```
-
-## Available Recipes
-
-| Recipe | File | Use Case |
-|--------|------|----------|
-| Add Database | `.kilocode/recipes/add-database.md` | Data persistence with Drizzle + SQLite |
-
-## Pending Improvements
-
-- [ ] Add more recipes (auth, email, etc.)
-- [ ] Add example components
-- [ ] Add testing setup recipe
+### Core Feature (Functional)
+- 8-question Tour Wizard
+- Personalized tour route generation
+- Nonsensical Regret Score calculation (0-10,000)
+- Certificate with badges
+- Fake download/share functionality
 
 ## Session History
 
 | Date | Changes |
 |------|---------|
-| Initial | Template created with base setup |
+| 2026-02-16 | Complete Museum of Bad Decisions built from scratch |
