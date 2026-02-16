@@ -20,6 +20,16 @@ interface TourResults {
     shoeSizeFactor: number;
     chaosBonus: number;
   };
+  runStats?: {
+    strikes: number;
+    instability: number;
+    suspicion: number;
+    recoveryTokensLeft: number;
+    hardRegressions: number;
+    attempts: number;
+    durationMs: number;
+    phaseStats: Record<string, { attempts: number; events: number; regressions: number }>;
+  };
 }
 
 export default function CertificatePage() {
@@ -283,6 +293,40 @@ export default function CertificatePage() {
                 </p>
               </div>
             </section>
+
+            {results.runStats && (
+              <section className="p-4 md:p-8 bg-[#FFFF99] border-y-4 border-dotted border-[#8B4513]">
+                <div className="max-w-3xl mx-auto">
+                  <h2
+                    className="text-2xl text-center mb-4"
+                    style={{ fontFamily: "'Bangers', cursive", color: '#8B4513' }}
+                  >
+                    🧪 SURVIVAL DIAGNOSTICS
+                  </h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                    <div className="p-3 bg-white border border-[#808080]">
+                      <div className="text-xl font-bold">{results.runStats.strikes}</div>
+                      <div className="text-xs">Strikes</div>
+                    </div>
+                    <div className="p-3 bg-white border border-[#808080]">
+                      <div className="text-xl font-bold">{results.runStats.instability}</div>
+                      <div className="text-xs">Instability</div>
+                    </div>
+                    <div className="p-3 bg-white border border-[#808080]">
+                      <div className="text-xl font-bold">{results.runStats.suspicion}</div>
+                      <div className="text-xs">Suspicion</div>
+                    </div>
+                    <div className="p-3 bg-white border border-[#808080]">
+                      <div className="text-xl font-bold">{results.runStats.attempts}</div>
+                      <div className="text-xs">Total Attempts</div>
+                    </div>
+                  </div>
+                  <p className="text-center text-xs mt-3" style={{ fontFamily: "'VT323', monospace" }}>
+                    Duration survived: {Math.max(1, Math.round(results.runStats.durationMs / 1000))}s | Hard regressions: {results.runStats.hardRegressions} | Recovery tokens left: {results.runStats.recoveryTokensLeft}
+                  </p>
+                </div>
+              </section>
+            )}
 
             {/* Leaderboard (Fake) */}
             <section className="p-4 md:p-8 bg-[#F5F5DC]">

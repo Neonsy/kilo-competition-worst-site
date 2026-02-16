@@ -1,15 +1,42 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { TopNav, SideNav, FooterNav, FloatingWidget } from '@/components/Navigation';
 import { PopupManager } from '@/components/Popups';
 import { HellButton } from '@/components/HellButton';
+import { LivingOverlay } from '@/components/LivingOverlay';
 import { getRandomTestimonials } from '@/data/testimonials';
 import { getRandomDisclaimer } from '@/data/disclaimers';
 
 export default function Home() {
   const testimonials = getRandomTestimonials(4);
   const disclaimer = getRandomDisclaimer();
+  const [incidentIndex, setIncidentIndex] = useState(0);
+  const [countdown, setCountdown] = useState(52);
+  const [ctaBlockedUntil, setCtaBlockedUntil] = useState(0);
+  const [ctaNudges, setCtaNudges] = useState(0);
+
+  const incidents = [
+    'Severity 2: decorative warning volume increased.',
+    'Severity 3: expectation mismatch detected in hero section.',
+    'Severity 1: trust index dropped below recommended range.',
+    'Severity 4: user patience approaching legal minimum.',
+  ];
+
+  useEffect(() => {
+    const rotator = setInterval(() => {
+      setIncidentIndex(prev => (prev + 1) % incidents.length);
+    }, 4500);
+    return () => clearInterval(rotator);
+  }, [incidents.length]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown(prev => (prev <= 0 ? 59 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <PopupManager>
@@ -19,7 +46,8 @@ export default function Home() {
         <div className="flex flex-1">
           <SideNav />
           
-          <main className="flex-1 overflow-x-hidden">
+          <main className="relative flex-1 overflow-x-hidden">
+            <LivingOverlay mode="home" intensity="low" mobileHostile eventPulse={incidentIndex + ctaNudges} />
             {/* Hero Section - Maximum Overwhelm */}
             <section 
               className="relative min-h-[70vh] bg-gradient-to-br from-[#39FF14] via-[#FF69B4] to-[#00FFFF] p-4 md:p-8"
@@ -103,6 +131,19 @@ export default function Home() {
                 <div className="mt-8">
                   <Link href="/tour">
                     <button
+                      onMouseEnter={() => {
+                        if (Math.random() > 0.62) {
+                          setCtaBlockedUntil(Date.now() + 1200);
+                          setCtaNudges(prev => prev + 1);
+                        }
+                      }}
+                      onClick={(e) => {
+                        if (Date.now() < ctaBlockedUntil) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          alert('CTA is recalibrating. Please click again shortly.');
+                        }
+                      }}
                       className="px-8 py-4 text-xl md:text-2xl font-bold animate-pulse-color rounded-lg shadow-chaos"
                       style={{ 
                         fontFamily: "'Bangers', cursive",
@@ -122,6 +163,35 @@ export default function Home() {
                     style={{ fontFamily: "'VT323', monospace", color: '#FF0000' }}
                   >
                     ⚠️ WARNING: Tour may cause mild existential dread ⚠️
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="p-4 bg-[#FFFF99] border-y-4 border-dashed border-[#FF0000] relative z-10">
+              <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="p-3 bg-[#E6E6FA] border-2 border-[#808080]">
+                  <p className="text-xs font-bold" style={{ fontFamily: "'Bangers', cursive" }}>
+                    LIVE INCIDENT
+                  </p>
+                  <p className="text-[11px] mt-1" style={{ fontFamily: "'VT323', monospace" }}>
+                    {incidents[incidentIndex]}
+                  </p>
+                </div>
+                <div className="p-3 bg-[#F5F5DC] border-2 border-[#8B4513]">
+                  <p className="text-xs font-bold" style={{ fontFamily: "'Bangers', cursive" }}>
+                    NEXT UNPLANNED MAINTENANCE
+                  </p>
+                  <p className="text-[11px] mt-1" style={{ fontFamily: "'VT323', monospace" }}>
+                    {String(Math.floor(countdown / 60)).padStart(2, '0')}:{String(countdown % 60).padStart(2, '0')}
+                  </p>
+                </div>
+                <div className="p-3 bg-[#C0C0C0] border-2 border-[#808080]">
+                  <p className="text-xs font-bold" style={{ fontFamily: "'Bangers', cursive" }}>
+                    CTA FRICTION EVENTS
+                  </p>
+                  <p className="text-[11px] mt-1" style={{ fontFamily: "'VT323', monospace" }}>
+                    Redirect resistance triggered {ctaNudges} time(s)
                   </p>
                 </div>
               </div>

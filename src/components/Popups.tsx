@@ -122,35 +122,69 @@ export function Toast({ message, duration = 3000, onClose }: ToastProps) {
 // Popup manager component
 export function PopupManager({ children }: { children: React.ReactNode }) {
   const [activePopup, setActivePopup] = useState<ReturnType<typeof getRandomPopup> | null>(null);
+  const [activeVariant, setActiveVariant] = useState<'normal' | 'annoying' | 'impossible'>('normal');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [popupCount, setPopupCount] = useState(0);
 
+  const spawnPopup = useCallback((forcedVariant?: 'normal' | 'annoying' | 'impossible') => {
+    if (activePopup) {
+      return;
+    }
+    const variantPool: Array<'normal' | 'annoying' | 'impossible'> = ['normal', 'annoying', 'impossible'];
+    const selectedVariant =
+      forcedVariant || variantPool[Math.floor(Math.random() * variantPool.length)];
+    setActivePopup(getRandomPopup());
+    setActiveVariant(selectedVariant);
+    setPopupCount(prev => prev + 1);
+  }, [activePopup]);
+
   useEffect(() => {
-    // Show a popup after 5 seconds on the site
+    // Show a popup shortly after landing.
     const timer = setTimeout(() => {
       if (popupCount === 0) {
-        setActivePopup(getRandomPopup());
-        setPopupCount(1);
+        spawnPopup();
       }
-    }, 5000);
+    }, 1500 + Math.floor(Math.random() * 1700));
 
     return () => clearTimeout(timer);
-  }, [popupCount]);
+  }, [popupCount, spawnPopup]);
 
-  // Random popup trigger
+  // Frequent random popup trigger.
   useEffect(() => {
     const interval = setInterval(() => {
-      if (Math.random() > 0.95 && !activePopup) {
-        setActivePopup(getRandomPopup());
-        setPopupCount(prev => prev + 1);
+      if (Math.random() > 0.78 && !activePopup) {
+        spawnPopup();
       }
-    }, 30000);
+    }, 12000);
 
     return () => clearInterval(interval);
-  }, [activePopup]);
+  }, [activePopup, spawnPopup]);
+
+  // Exit intent popup.
+  useEffect(() => {
+    const handleMouseLeaveTop = (e: MouseEvent) => {
+      if (e.clientY <= 6 && Math.random() > 0.45 && !activePopup) {
+        spawnPopup('impossible');
+      }
+    };
+    document.addEventListener('mouseout', handleMouseLeaveTop);
+    return () => document.removeEventListener('mouseout', handleMouseLeaveTop);
+  }, [activePopup, spawnPopup]);
+
+  // Scroll-depth popup.
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!activePopup && window.scrollY > 280 && Math.random() > 0.88) {
+        spawnPopup('annoying');
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [activePopup, spawnPopup]);
 
   const closePopup = () => {
     setActivePopup(null);
+    setActiveVariant('normal');
     // Show toast after closing popup
     const messages = [
       'Popup closed. Another will appear shortly.',
@@ -160,6 +194,13 @@ export function PopupManager({ children }: { children: React.ReactNode }) {
       'You will receive more popups shortly.',
     ];
     setToastMessage(messages[Math.floor(Math.random() * messages.length)]);
+
+    // Sometimes chain into another popup immediately.
+    if (Math.random() > 0.58) {
+      setTimeout(() => {
+        spawnPopup(Math.random() > 0.5 ? 'annoying' : 'impossible');
+      }, 500 + Math.floor(Math.random() * 900));
+    }
   };
 
   return (
@@ -171,7 +212,7 @@ export function PopupManager({ children }: { children: React.ReactNode }) {
           message={activePopup.message}
           buttonText={activePopup.buttonText}
           onClose={closePopup}
-          variant={Math.random() > 0.7 ? 'annoying' : 'normal'}
+          variant={activeVariant}
         />
       )}
       {toastMessage && (

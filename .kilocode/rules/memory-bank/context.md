@@ -2,7 +2,7 @@
 
 ## Current State
 
-**Project Status**: ✅ COMPLETE - The Museum of Bad Decisions is fully built and functional!
+**Project Status**: ✅ COMPLETE - Hostility Escalation pass implemented (12-step tour + living overlays + stateful penalties), while preserving completion.
 
 A deliberately awful website that masquerades as an interactive museum of terrible ideas. The core functionality (Tour Wizard) works perfectly while every aspect of UX/UI is designed to frustrate, confuse, and amuse users.
 
@@ -23,6 +23,13 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 - [x] Regret Certificate with fake download
 - [x] Help page with unhelpful FAQ and broken contact form
 - [x] Settings page with meaningless toggles
+- [x] Controlled sabotage pass (2026-02-16): navigation misroutes, popup escalation, and tour friction increases
+- [x] Progress button flow fixed to avoid permanent lock while preserving fake progress pain
+- [x] Hostility Escalation implemented: 12-step tour with phase-based state machine penalties
+- [x] Added `src/data/tourEvents.ts` with deterministic event scheduling and cooldowns
+- [x] Added `src/components/LivingOverlay.tsx` and integrated overlays into Tour/Home/Exhibits
+- [x] ProgressBar now shows phase + strike/instability/suspicion/lockout telemetry
+- [x] Certificate page now reads and displays survival diagnostics from `runStats`
 
 ## Current Structure
 
@@ -50,18 +57,20 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 
 ### UX Torture
 - Navigation in 4 places with different labels
+- Navigation links occasionally redirect to wrong pages
 - Fake menu items that go nowhere
-- Hostile form validation ("Your name is too normal")
-- Progress bar that lies (12% → 98% → 43% → 110%)
-- Buttons that move on hover
-- Aggressive popups
-- Tooltips that block clicks
+- Phase-based tour penalties: strikes, lockouts, freeze bursts, regressions, input corruption
+- Pity-pass and recovery token mechanics keep completion possible despite hostility
+- Living overlays create continuous motion/noise and occasional temporary occlusion
+- Home and Exhibits now have incident rails, countdown disruption, and unstable movement waves
+- Aggressive popups with exit-intent/scroll triggers and follow-up chains
 
 ### Core Feature (Functional)
-- 8-question Tour Wizard
+- 12-question Tour Wizard (3 phases, escalating hostility)
+- Tour remains finishable with explicit guardrails (max hard regressions + pity pass threshold)
 - Personalized tour route generation
 - Nonsensical Regret Score calculation (0-10,000)
-- Certificate with badges
+- Certificate with badges and survival diagnostics
 - Fake download/share functionality
 
 ## Session History
@@ -69,3 +78,5 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | Date | Changes |
 |------|---------|
 | 2026-02-16 | Complete Museum of Bad Decisions built from scratch |
+| 2026-02-16 | Added hostile UX escalation pass while preserving one valid completion path |
+| 2026-02-16 | Implemented 12-step stateful hostility engine + living overlays across Tour/Home/Exhibits |

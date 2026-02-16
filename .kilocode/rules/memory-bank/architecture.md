@@ -15,6 +15,42 @@ src/
     └── db/                 # Database files (add via recipe)
 ```
 
+## Project-Specific Architecture (Museum of Bad Decisions)
+
+```
+src/
+├── app/
+│   ├── page.tsx                    # Home with incident rail + living overlay
+│   ├── exhibits/page.tsx           # Exhibits with unstable shift + maintenance waves
+│   ├── tour/page.tsx               # 12-step phase-based hostility state machine
+│   ├── certificate/page.tsx        # Certificate + survival diagnostics
+│   ├── help/page.tsx               # Help/FAQ chaos page
+│   └── settings/page.tsx           # Meaningless settings page
+├── components/
+│   ├── LivingOverlay.tsx           # Shared overlay engine for eventful dead-space fill
+│   ├── Navigation.tsx              # Multi-nav mismatch + misroutes
+│   ├── Popups.tsx                  # Aggressive popup triggers/chains
+│   ├── ProgressBar.tsx             # Lying progress + penalty telemetry
+│   ├── HellButton.tsx              # Hostile buttons and fake processing
+│   └── HostileForm.tsx             # Hostile form controls
+└── data/
+    ├── questions.ts                # 12 questions + phase/difficulty metadata
+    ├── tourEvents.ts               # Phase-scoped deterministic hostility events
+    └── ...                         # badges/exhibits/disclaimers/validations
+```
+
+## Runtime Hostility Pattern
+
+- `tour/page.tsx` uses reducer-driven `TourRunState` for stateful penalties:
+  - `strikes`, `instability`, `suspicion`
+  - `lockouts`, `freeze bursts`, `input corruption`
+  - `recovery tokens`, `pity-pass threshold`, `hard regression cap`
+- Event scheduling uses `tourEvents.ts` with phase-aware probabilities and cooldowns.
+- Escalation phases:
+  - Phase 1: orientation chaos
+  - Phase 2: compounding penalties
+  - Phase 3: maximum hostility
+
 ## Key Design Patterns
 
 ### 1. App Router Pattern

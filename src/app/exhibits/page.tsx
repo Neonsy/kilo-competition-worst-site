@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { TopNav, SideNav, FooterNav, FloatingWidget } from '@/components/Navigation';
 import { PopupManager } from '@/components/Popups';
 import { HellButton } from '@/components/HellButton';
+import { LivingOverlay } from '@/components/LivingOverlay';
 import { exhibits, exhibitCategories } from '@/data/exhibits';
 import { getRandomDisclaimer } from '@/data/disclaimers';
 
@@ -16,6 +17,9 @@ export default function ExhibitsPage() {
   const [sortBy, setSortBy] = useState<string>('regret');
   const [searchTerm, setSearchTerm] = useState('');
   const [randomSwitches, setRandomSwitches] = useState(0);
+  const [unstableShift, setUnstableShift] = useState(0);
+  const [maintenanceUntil, setMaintenanceUntil] = useState(0);
+  const [incidentTape, setIncidentTape] = useState(0);
   const disclaimer = getRandomDisclaimer();
 
   // Randomly switch view mode
@@ -28,6 +32,21 @@ export default function ExhibitsPage() {
       }
     }, 10000);
 
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (Math.random() > 0.74) {
+        setUnstableShift(Math.floor((Math.random() - 0.5) * 16));
+      }
+      if (Math.random() > 0.83) {
+        setMaintenanceUntil(Date.now() + 2200 + Math.floor(Math.random() * 2000));
+      }
+      if (Math.random() > 0.55) {
+        setIncidentTape(prev => prev + 1);
+      }
+    }, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -63,7 +82,8 @@ export default function ExhibitsPage() {
         <div className="flex flex-1">
           <SideNav />
           
-          <main className="flex-1 overflow-x-hidden">
+          <main className="relative flex-1 overflow-x-hidden">
+            <LivingOverlay mode="exhibits" intensity="medium" mobileHostile eventPulse={incidentTape + randomSwitches} />
             {/* Header */}
             <section 
               className="p-4 md:p-8 bg-gradient-to-r from-[#FF69B4] to-[#00FFFF]"
@@ -104,6 +124,20 @@ export default function ExhibitsPage() {
                   ⚠️ View mode has changed randomly {randomSwitches} time(s) ⚠️
                 </p>
               )}
+            </section>
+
+            <section className="p-3 bg-[#FFFF99] border-y-4 border-dotted border-[#8B4513] relative z-10">
+              <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>
+                <div className="p-2 bg-[#E6E6FA] border border-[#808080]">
+                  CATALOG INCIDENT #{incidentTape}
+                </div>
+                <div className="p-2 bg-[#F5F5DC] border border-[#808080]">
+                  Auto-shift offset: {unstableShift}px
+                </div>
+                <div className="p-2 bg-[#C0C0C0] border border-[#808080]">
+                  Maintenance: {Date.now() < maintenanceUntil ? 'ACTIVE' : 'scheduled unpredictably'}
+                </div>
+              </div>
             </section>
 
             {/* Filters Section - Overly Complicated */}
@@ -228,7 +262,7 @@ export default function ExhibitsPage() {
 
             {/* Exhibits Display */}
             <section className="p-4 md:p-8">
-              <div className="max-w-6xl mx-auto">
+              <div className="max-w-6xl mx-auto transition-transform duration-500" style={{ transform: `translateX(${unstableShift}px)` }}>
                 {viewMode === 'grid' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredExhibits.map((exhibit, index) => (
@@ -335,6 +369,17 @@ export default function ExhibitsPage() {
               Exhibit availability may vary. Some exhibits may be imaginary. 
               Premium exhibits require Premium Premium™ subscription ($49.99/month).
             </div>
+
+            {Date.now() < maintenanceUntil && (
+              <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+                <div className="bg-[#FFFF99]/95 border-4 border-dashed border-[#FF0000] p-6 text-center animate-blink-fast" style={{ fontFamily: "'Bangers', cursive" }}>
+                  <p className="text-xl">UNPLANNED MAINTENANCE WAVE</p>
+                  <p className="text-sm mt-1" style={{ fontFamily: "'VT323', monospace" }}>
+                    Browsing remains available but emotionally compromised.
+                  </p>
+                </div>
+              </div>
+            )}
           </main>
         </div>
 

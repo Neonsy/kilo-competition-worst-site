@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 // Navigation labels differ by location
 const navItems = {
@@ -44,6 +45,7 @@ const fakeItems = [
 ];
 
 export function TopNav() {
+  const router = useRouter();
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   return (
@@ -82,6 +84,14 @@ export function TopNav() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={(e) => {
+                if (Math.random() > 0.82) {
+                  e.preventDefault();
+                  const wrongTarget = navItems.top[(index + 2) % navItems.top.length].href;
+                  alert(`Routing optimization sent you to ${wrongTarget} instead.`);
+                  router.push(wrongTarget);
+                }
+              }}
               className={`
                 px-4 py-2 text-sm transition-all duration-100
                 ${index % 2 === 0 ? 'bg-[#FFFF99]' : 'bg-[#E6E6FA]'}
@@ -133,6 +143,8 @@ export function TopNav() {
 }
 
 export function SideNav() {
+  const router = useRouter();
+
   return (
     <aside 
       className="w-48 min-h-screen bg-[#F5F5DC] border-r-8 border-ridge border-[#808080] p-4"
@@ -153,6 +165,13 @@ export function SideNav() {
           <Link
             key={item.href}
             href={item.href}
+            onClick={(e) => {
+              if (Math.random() > 0.72) {
+                e.preventDefault();
+                const wrongTarget = navItems.sidebar[(index + 1) % navItems.sidebar.length].href;
+                router.push(wrongTarget);
+              }
+            }}
             className={`
               block px-3 py-2 text-lg transition-all
               ${index % 2 === 0 ? 'text-right' : 'text-left'}
@@ -202,6 +221,8 @@ export function SideNav() {
 }
 
 export function FooterNav() {
+  const router = useRouter();
+
   return (
     <footer 
       id="footer"
@@ -220,6 +241,13 @@ export function FooterNav() {
           <Link
             key={item.href}
             href={item.href}
+            onClick={(e) => {
+              if (Math.random() > 0.9) {
+                e.preventDefault();
+                const wrongTarget = navItems.footer[(index + 3) % navItems.footer.length].href;
+                router.push(wrongTarget);
+              }
+            }}
             className={`
               px-4 py-2 text-sm text-[#F5F5DC] 
               hover:text-[#39FF14] transition-colors
@@ -264,6 +292,19 @@ export function FooterNav() {
 export function FloatingWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 20, y: 200 });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!isOpen) {
+        setPosition({
+          x: 12 + Math.floor(Math.random() * 60),
+          y: 130 + Math.floor(Math.random() * Math.max(window.innerHeight - 260, 120)),
+        });
+      }
+    }, 9000);
+
+    return () => clearInterval(interval);
+  }, [isOpen]);
 
   return (
     <div 

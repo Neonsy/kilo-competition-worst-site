@@ -5,10 +5,24 @@ import { useState, useEffect } from 'react';
 interface ProgressBarProps {
   currentStep: number;
   totalSteps: number;
+  phase?: 1 | 2 | 3;
+  strikes?: number;
+  instability?: number;
+  suspicion?: number;
+  lockoutMs?: number;
   className?: string;
 }
 
-export function ProgressBar({ currentStep, totalSteps, className = '' }: ProgressBarProps) {
+export function ProgressBar({
+  currentStep,
+  totalSteps,
+  phase = 1,
+  strikes = 0,
+  instability = 0,
+  suspicion = 0,
+  lockoutMs = 0,
+  className = '',
+}: ProgressBarProps) {
   const [displayProgress, setDisplayProgress] = useState(0);
   const [lieMode, setLieMode] = useState(false);
 
@@ -67,6 +81,26 @@ export function ProgressBar({ currentStep, totalSteps, className = '' }: Progres
         >
           {Math.floor(displayProgress)}%
         </span>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-2">
+        <span className="px-2 py-1 text-[10px] bg-[#8B4513] text-[#FFFF99] border border-[#FFFF99]">
+          PHASE {phase}
+        </span>
+        <span className="px-2 py-1 text-[10px] bg-[#FF0000] text-white border border-[#8B0000]">
+          Strikes: {strikes}
+        </span>
+        <span className="px-2 py-1 text-[10px] bg-[#E6E6FA] text-[#8B4513] border border-[#808080]">
+          Instability: {Math.max(0, Math.round(instability))}
+        </span>
+        <span className="px-2 py-1 text-[10px] bg-[#FFFF99] text-[#8B4513] border border-[#8B4513]">
+          Suspicion: {Math.max(0, Math.round(suspicion))}
+        </span>
+        {lockoutMs > 0 && (
+          <span className="px-2 py-1 text-[10px] bg-black text-[#39FF14] border border-[#39FF14] animate-blink-fast">
+            Lockout: {Math.ceil(lockoutMs / 1000)}s
+          </span>
+        )}
       </div>
       
       <div className="progress-lie h-6">

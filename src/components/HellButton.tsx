@@ -240,6 +240,7 @@ export function ProgressButton({
 }) {
   const [progress, setProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isCoolingDown, setIsCoolingDown] = useState(false);
   const [stage, setStage] = useState(0);
 
   const stages = [
@@ -255,15 +256,26 @@ export function ProgressButton({
   ];
 
   const handleClick = () => {
+    if (isProcessing || isCoolingDown) {
+      return;
+    }
+
+    // Sometimes reject a click for "security" reasons.
+    if (Math.random() > 0.83) {
+      setIsCoolingDown(true);
+      setTimeout(() => setIsCoolingDown(false), 1200);
+      return;
+    }
+
     setIsProcessing(true);
     setProgress(0);
     setStage(0);
 
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       setProgress(prev => {
         const next = prev + Math.random() * 15;
         if (next >= 97) {
-          clearInterval(interval);
+          window.clearInterval(interval);
           return 97; // Never reaches 100
         }
         return next;
@@ -273,18 +285,24 @@ export function ProgressButton({
     }, 500);
 
     // Actually call onClick after fake delay
-    setTimeout(() => {
+    window.setTimeout(() => {
+      window.clearInterval(interval);
       onClick?.();
-    }, 3000);
+      setIsProcessing(false);
+      setIsCoolingDown(true);
+      setStage(0);
+      setProgress(0);
+      window.setTimeout(() => setIsCoolingDown(false), 900);
+    }, 3000 + Math.floor(Math.random() * 900));
   };
 
   return (
     <div className="inline-block">
       <HellButton
         variant="skeuomorphic"
-        label={isProcessing ? stages[stage] : label}
+        label={isProcessing ? stages[stage] : isCoolingDown ? 'Recalibrating...' : label}
         onClick={handleClick}
-        disabled={isProcessing}
+        disabled={isProcessing || isCoolingDown}
       />
       {isProcessing && (
         <div className="progress-lie mt-2 w-48">
