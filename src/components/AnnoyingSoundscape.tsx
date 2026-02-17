@@ -8,6 +8,28 @@ type AudioNodes = {
   compressor: DynamicsCompressorNode;
 };
 
+type SoundscapeStartPath = 'gate_release' | 'none';
+type GateLifecycleState = 'idle' | 'arming' | 'active' | 'released';
+
+const GATE_RELEASE_EVENT = 'mobd:glitch-gate-released';
+const ENTRY_CONFIRMED_EVENT = 'mobd:entry-confirmed';
+const MUSIC_STARTED_EVENT = 'mobd:visit-music-started';
+const WAKE_SOUND_COOLDOWN_MS = 260;
+
+declare global {
+  interface Window {
+    __mobdEntryConfirmed?: boolean;
+    __mobdGateLifecycle?: GateLifecycleState;
+    __mobdSoundscapeDebug?: {
+      ctxState: AudioContextState | 'uninitialized';
+      started: boolean;
+      startPath: SoundscapeStartPath;
+      lastResumeAttemptAt: number | null;
+      resumeAttempts: number;
+    };
+  }
+}
+
 function makeNodes(): AudioNodes {
   const ctx = new window.AudioContext();
   const compressor = ctx.createDynamicsCompressor();
@@ -181,6 +203,17 @@ export function AnnoyingSoundscape() {
 
   useEffect(() => {
     let disposed = false;
+    let started = false;
+    let startPath: SoundscapeStartPath = 'none';
+    let resumeAttempts = 0;
+    let lastResumeAttemptAt: number | null = null;
+    let gatePollId: number | null = null;
+    let resumeProbeId: number | null = null;
+    let gateReleaseHandler: (() => void) | null = null;
+    let musicStartedHandler: (() => void) | null = null;
+    let entryConfirmedHandler: (() => void) | null = null;
+    let lastWakeSoundAt = 0;
+    let entryConfirmed = window.__mobdEntryConfirmed === true;
 
     const queueTimeout = (fn: () => void, delay: number) => {
       const id = window.setTimeout(fn, delay);
@@ -195,11 +228,37 @@ export function AnnoyingSoundscape() {
       return nodesRef.current;
     };
 
+    const syncSoundscapeDebug = () => {
+      const ctxState = nodesRef.current?.ctx.state ?? 'uninitialized';
+      window.__mobdSoundscapeDebug = {
+        ctxState,
+        started,
+        startPath,
+        lastResumeAttemptAt,
+        resumeAttempts,
+      };
+    };
+
     const tryResume = () => {
+      lastResumeAttemptAt = Date.now();
+      resumeAttempts += 1;
       const nodes = ensureNodes();
       if (nodes.ctx.state !== 'running') {
         void nodes.ctx.resume();
       }
+      syncSoundscapeDebug();
+    };
+
+    const isGateReleased = () => {
+      const lifecycle = window.__mobdGateLifecycle ?? 'idle';
+      if (lifecycle === 'released') return true;
+      if (lifecycle === 'arming' || lifecycle === 'active') return false;
+
+      const gate = document.querySelector<HTMLElement>('.global-glitch-gate');
+      const htmlLocked = document.documentElement.classList.contains('global-glitch-lock');
+      const bodyLocked = document.body.classList.contains('global-glitch-lock');
+      if (gate || htmlLocked || bodyLocked) return false;
+      return window.__mobdEntryConfirmed === true;
     };
 
     const playRandom = () => {
@@ -210,12 +269,14 @@ export function AnnoyingSoundscape() {
       const now = nodes.ctx.currentTime + 0.01;
       const fn = playbook[Math.floor(Math.random() * playbook.length)] || playChirp;
       fn(nodes.ctx, nodes.master, now);
+      syncSoundscapeDebug();
     };
 
     const schedule = () => {
       if (disposed) return;
       const wait = 650 + Math.floor(Math.random() * 2300);
       queueTimeout(() => {
+        tryResume();
         playRandom();
         // Burst clusters keep the soundscape persistently irritating.
         if (Math.random() < 0.38) {
@@ -228,30 +289,136 @@ export function AnnoyingSoundscape() {
       }, wait);
     };
 
+    const startSoundscape = (path: SoundscapeStartPath) => {
+      if (disposed || started) return;
+      started = true;
+      startPath = path;
+      if (gateReleaseHandler) {
+        window.removeEventListener(GATE_RELEASE_EVENT, gateReleaseHandler);
+        gateReleaseHandler = null;
+      }
+      if (gatePollId !== null) {
+        window.clearInterval(gatePollId);
+        gatePollId = null;
+      }
+      tryResume();
+      playRandom();
+      schedule();
+      syncSoundscapeDebug();
+
+      if (resumeProbeId !== null) {
+        window.clearInterval(resumeProbeId);
+      }
+      // Probe resume briefly so autoplay-allowed browsers become audible without hover/click interaction.
+      resumeProbeId = window.setInterval(() => {
+        if (disposed) return;
+        tryResume();
+        if (nodesRef.current?.ctx.state === 'running') {
+          playRandom();
+          if (resumeProbeId !== null) {
+            window.clearInterval(resumeProbeId);
+            resumeProbeId = null;
+          }
+        }
+      }, 180);
+
+      queueTimeout(() => {
+        if (resumeProbeId !== null) {
+          window.clearInterval(resumeProbeId);
+          resumeProbeId = null;
+        }
+      }, 3200);
+    };
+
     const wake = () => {
       tryResume();
+      if (!started) {
+        if (!entryConfirmed) return;
+        return;
+      }
+      const now = Date.now();
+      if (now - lastWakeSoundAt < WAKE_SOUND_COOLDOWN_MS) return;
+      lastWakeSoundAt = now;
       playRandom();
     };
 
-    tryResume();
-    queueTimeout(() => {
-      playRandom();
-      schedule();
-    }, 300 + Math.floor(Math.random() * 900));
+    const armGateReleaseStart = () => {
+      if (gateReleaseHandler) {
+        window.removeEventListener(GATE_RELEASE_EVENT, gateReleaseHandler);
+        gateReleaseHandler = null;
+      }
+      if (gatePollId !== null) {
+        window.clearInterval(gatePollId);
+        gatePollId = null;
+      }
+      if (isGateReleased()) {
+        startSoundscape('gate_release');
+      } else {
+        gateReleaseHandler = () => {
+          startSoundscape('gate_release');
+        };
+        window.addEventListener(GATE_RELEASE_EVENT, gateReleaseHandler, { once: true });
+        gatePollId = window.setInterval(() => {
+          if (isGateReleased()) {
+            startSoundscape('gate_release');
+          }
+        }, 90);
+      }
+    };
 
-    window.addEventListener('pointerdown', wake, { passive: true });
-    window.addEventListener('keydown', wake);
+    if (entryConfirmed) {
+      armGateReleaseStart();
+    } else {
+      entryConfirmedHandler = () => {
+        entryConfirmed = true;
+        armGateReleaseStart();
+        syncSoundscapeDebug();
+      };
+      window.addEventListener(ENTRY_CONFIRMED_EVENT, entryConfirmedHandler, { once: true });
+    }
+
+    musicStartedHandler = () => {
+      tryResume();
+      if (started) {
+        playRandom();
+      }
+    };
+    window.addEventListener(MUSIC_STARTED_EVENT, musicStartedHandler);
+
+    window.addEventListener('pointerdown', wake, { passive: true, capture: true });
+    window.addEventListener('touchstart', wake, { passive: true, capture: true });
+    window.addEventListener('keydown', wake, { capture: true });
+    syncSoundscapeDebug();
 
     return () => {
       disposed = true;
       timersRef.current.forEach(id => window.clearTimeout(id));
       timersRef.current = [];
-      window.removeEventListener('pointerdown', wake);
-      window.removeEventListener('keydown', wake);
+      if (gatePollId !== null) {
+        window.clearInterval(gatePollId);
+      }
+      if (resumeProbeId !== null) {
+        window.clearInterval(resumeProbeId);
+      }
+      if (gateReleaseHandler) {
+        window.removeEventListener(GATE_RELEASE_EVENT, gateReleaseHandler);
+      }
+      if (musicStartedHandler) {
+        window.removeEventListener(MUSIC_STARTED_EVENT, musicStartedHandler);
+      }
+      if (entryConfirmedHandler) {
+        window.removeEventListener(ENTRY_CONFIRMED_EVENT, entryConfirmedHandler);
+      }
+      window.removeEventListener('pointerdown', wake, true);
+      window.removeEventListener('touchstart', wake, true);
+      window.removeEventListener('keydown', wake, true);
       if (nodesRef.current) {
         void nodesRef.current.ctx.close();
         nodesRef.current = null;
       }
+      started = false;
+      startPath = 'none';
+      syncSoundscapeDebug();
     };
   }, []);
 

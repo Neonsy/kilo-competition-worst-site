@@ -103,7 +103,7 @@ export default function Home() {
             <TargetedCursorLayer phase={3} hostilityMode={HOSTILITY_MODE} pityPass={false} active />
             <CursorCorruptionLayer phase={3} hostilityMode={HOSTILITY_MODE} pityPass={false} active eventPulse={incidentIndex + ctaNudges} />
             <LivingOverlay mode="home" hostilityMode={HOSTILITY_MODE} intensity={MAXIMUM_HOSTILITY.overlay.intensity} mobileHostile eventPulse={incidentIndex + ctaNudges} />
-            <ResonanceShellCorruptor pulseKey={pulseState.key} hostilityMode={HOSTILITY_MODE} intensity={MAXIMUM_HOSTILITY.shell.intensity} profile={MAXIMUM_HOSTILITY.shell.profile} />
+            <ResonanceShellCorruptor pulseKey={pulseState.key} hostilityMode={HOSTILITY_MODE} intensity={MAXIMUM_HOSTILITY.shell.intensity} profile={MAXIMUM_HOSTILITY.shell.profile} triggerMode="ambient" ambientBreakChance={MAXIMUM_HOSTILITY.shellAmbientCycle.breakChance} />
             <div className="res-layer-stack">
               <SignalNoiseVeil hostilityMode={HOSTILITY_MODE} severity={MAXIMUM_HOSTILITY.visual.resonanceNoiseSeverity} scanlines noise pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
               <ResonanceFractureLayer hostilityMode={HOSTILITY_MODE} phase={3} intensity={resonanceIntensity} pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />

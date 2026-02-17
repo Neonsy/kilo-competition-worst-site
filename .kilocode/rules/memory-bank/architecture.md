@@ -8,7 +8,13 @@ src/
 │   ├── layout.tsx          # Root layout + metadata
 │   ├── page.tsx            # Home page
 │   ├── globals.css         # Tailwind imports + global styles
-│   └── favicon.ico         # Site icon
+├── public/
+│   ├── favicon.ico         # Multi-size site icon (16/32/48)
+│   ├── favicon.png         # Explicit 32x32 PNG fallback icon
+│   ├── apple-touch-icon.png# Explicit 180x180 Apple touch icon
+│   └── audio/
+│       ├── intro/          # Intro gate sync track
+│       └── playlist/       # Route-global music queue mp3 assets
 └── (expand as needed)
     ├── components/         # React components (add when needed)
     ├── lib/                # Utilities and helpers (add when needed)
@@ -42,7 +48,9 @@ src/
 │   ├── ResonancePulseLayer.tsx     # Red resonance bands, ghost bursts, chromatic flashes (decorative)
 │   ├── UIFragmentDebris.tsx        # Fake detached UI fragments floating in whitespace (decorative)
 │   ├── SignalNoiseVeil.tsx         # Scanlines, noise texture, low-alpha flicker (decorative)
-│   ├── ResonanceShellCorruptor.tsx # Pulse-driven shell break/heal states on real `.res-shell` containers
+│   ├── ResonanceShellCorruptor.tsx # Trigger-mode shell break/heal corruption (`pulse|ambient|both`) on `.res-shell`
+│   ├── GlobalGlitchGate.tsx        # Full-load unskippable glitch gate mounted in root layout
+│   ├── VisitMusicQueue.tsx         # Shuffled mp3 queue that starts immediately after glitch gate release
 │   ├── Navigation.tsx              # Multi-nav mismatch + misroutes
 │   ├── Popups.tsx                  # Aggressive popup triggers/chains
 │   ├── ProgressBar.tsx             # Lying progress + penalty telemetry
@@ -85,8 +93,34 @@ src/
   - `.res-layer-stack` renders resonance overlays above shells (`.res-shell`)
   - `.res-control-safe` keeps primary controls above resonance overlays
 - Shell corruption architecture:
-  - `ResonanceShellCorruptor.tsx` listens to `pulseKey` and applies short-lived break/heal classes to `.res-shell`
+  - `ResonanceShellCorruptor.tsx` supports `triggerMode` (`pulse`, `ambient`, `both`) and `ambientBreakChance`
+  - Ambient mode now performs real break->heal cycles on random shell subsets, not only subtle ambient twitch
+  - Route-level wiring currently uses ambient-only mode to create continuous autonomous shell failure/recovery loops
   - Root-level `.res-control-halo-active` pulses edge halos around `.res-control-safe` controls without intercepting pointer events
+- Global entry gate architecture:
+  - `GlobalGlitchGate.tsx` is mounted once in `src/app/layout.tsx` so it appears on each full document load
+  - Gate does not persist via storage; it naturally reruns on refresh/new tab/direct entry
+  - While active, it applies `global-glitch-lock` to `html/body` and traps pointer/keyboard/scroll at overlay level
+  - Gate now includes a critical inline HUD fallback (`Loading Bad Decisions` + live percent/progress) so loading state remains visible even if stylesheet chunks are stale/degraded
+  - `gate-v6` class token and `gate rev: v6` marker are applied at runtime for cache-bust verification in dev QA
+  - Gate duration is intro-driven from `MAXIMUM_HOSTILITY.entryGate.introTrackUrl` metadata with fallback duration guardrails
+  - Final 5s (`fadeOutLeadMs`) synchronizes intro volume fade and gate opacity fade; fake stalls/regressions are visual-only and do not extend total runtime
+  - Top-left emergency strip was removed; centered inline core card is always rendered and watchdog-verified, with portal fallback card (`data-gate-fallback-card`) if runtime visibility checks fail
+  - Gate exposes `window.__mobdGateDebug` (`active`, `phase`, `closing`, `fadeProgress`, `hmrRearmCount`, `lastMountedAt`, `lastReleasedAt`, `introDurationMs`, `remainingMs`, `fadeLeadMs`, `introState`, `mainPanelVisible`, `fallbackMode`) and uses mount-only dev HMR rearm to prevent render-loop resets
+  - Gate emits intro lifecycle events (`mobd:intro-audio-started`, `mobd:intro-audio-audible`, `mobd:intro-audio-blocked`) for downstream audio bootstrap coordination
+  - Gate emits `mobd:glitch-gate-released` only after full fade + teardown (inactive), not at fade-start
+- Global music queue architecture:
+  - `VisitMusicQueue.tsx` is mounted in `src/app/layout.tsx` and starts playback only after full gate release/unmount (event + polling fallback)
+  - Track URLs are static (`/audio/playlist/1.mp3`..`/audio/playlist/5.mp3`) and are shuffled once per visit via Fisher-Yates
+  - Queue/runtime state is kept in-memory on `window` so internal client navigation does not reshuffle or restart playback
+  - Autoplay strategy is unmuted-first with muted pre-roll fallback; queue begins immediately at gate release in muted mode when policy blocks unmuted start, then auto-promotes to audible with retry
+  - Unlock listeners (`pointerdown`, `pointermove`, `keydown`, `touchstart`) are attached from initial mount and can prime media before gate release without reshuffling queue order
+  - Runtime diagnostics are mirrored to `window.__mobdVisitMusic` including autoplay path and mute lifecycle (`autoplayPath`, `isMutedNow`, `lastUnmuteAttemptAt`, `unlockGestureSeen`)
+  - Music component emits `mobd:visit-music-started`/`mobd:visit-music-audible`; `AnnoyingSoundscape.tsx` listens for startup alignment and resume probing, and now also attempts best-effort no-click bootstrap from intro-audio lifecycle events
+  - `AnnoyingSoundscape.tsx` now writes `window.__mobdSoundscapeDebug` (`ctxState`, `started`, `startPath`, `lastResumeAttemptAt`, `resumeAttempts`) for autoplay troubleshooting
+- Maximum hostility constants now include:
+  - `entryGate` timing/regression/stall release config
+  - `shellAmbientCycle` ambient interval/chance/target control config
 - Required minigame gates are embedded directly in tour question steps:
   - Step 6: Bureaucracy Queue
   - Step 11: Maze of Consent

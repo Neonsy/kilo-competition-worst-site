@@ -1050,6 +1050,8 @@ function TourContent() {
               hostilityMode={HOSTILITY_MODE}
               intensity={MAXIMUM_HOSTILITY.shell.intensity}
               profile={MAXIMUM_HOSTILITY.shell.profile}
+              triggerMode="ambient"
+              ambientBreakChance={MAXIMUM_HOSTILITY.shellAmbientCycle.breakChance}
             />
             <div className="res-layer-stack">
               <SignalNoiseVeil

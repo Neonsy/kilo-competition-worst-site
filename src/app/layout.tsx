@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AnnoyingSoundscape } from '@/components/AnnoyingSoundscape';
 import { MysteryMeatNav } from '@/components/MysteryMeatNav';
+import { GlobalEntryOrchestrator } from '@/components/GlobalEntryOrchestrator';
+import { VisitMusicQueue } from '@/components/VisitMusicQueue';
 
 export const metadata: Metadata = {
   title: "🏛️ The Museum of Bad Decisions 🏛️",
@@ -9,11 +11,11 @@ export const metadata: Metadata = {
   keywords: "museum, bad decisions, regret, terrible choices, interactive exhibits",
   icons: {
     icon: [
-      { url: "https://upload.wikimedia.org/wikipedia/commons/c/c4/Icon_Error.png", type: "image/png" },
       { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.png", type: "image/png", sizes: "32x32" },
     ],
-    shortcut: "https://upload.wikimedia.org/wikipedia/commons/c/c4/Icon_Error.png",
-    apple: "https://upload.wikimedia.org/wikipedia/commons/c/c4/Icon_Error.png",
+    shortcut: [{ url: "/favicon.ico" }, { url: "/favicon.png", sizes: "32x32", type: "image/png" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
@@ -31,19 +33,22 @@ export default function RootLayout({
         <meta name="robots" content="noindex, nofollow, maybe" />
       </head>
       <body className="min-h-screen bg-tile-1">
-        {/* Skip link that goes to wrong place */}
-        <a 
-          href="#footer" 
-          className="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:bg-hot-pink focus:text-electric-yellow focus:p-4 focus:z-[99999]"
-        >
-          Skip to nowhere
-        </a>
-        
-        {/* Main content */}
-        {children}
+        <GlobalEntryOrchestrator>
+          {/* Skip link that goes to wrong place */}
+          <a
+            href="#footer"
+            className="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:bg-hot-pink focus:text-electric-yellow focus:p-4 focus:z-[99999]"
+          >
+            Skip to nowhere
+          </a>
 
-        <MysteryMeatNav />
-        <AnnoyingSoundscape />
+          {/* Main content */}
+          {children}
+
+          <MysteryMeatNav />
+          <VisitMusicQueue />
+          <AnnoyingSoundscape />
+        </GlobalEntryOrchestrator>
       </body>
     </html>
   );

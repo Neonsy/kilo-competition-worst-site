@@ -94,6 +94,106 @@ A deliberately awful website that masquerades as an interactive museum of terrib
   - Wired both globally in `src/app/layout.tsx` and added styles in `src/app/globals.css`
   - Tuned soundscape cadence for higher annoyance: shorter random intervals + burst clusters and slight gain jitter
   - Expanded sound variety with additional alarm/modem/static/click patterns and increased loudness range with compressor safety
+- [x] Global visit music queue pass (Run Both):
+  - Moved `1.mp3`..`5.mp3` from workspace root into `public/audio/playlist/`
+  - Added `src/components/VisitMusicQueue.tsx` and mounted it in `src/app/layout.tsx`
+  - Queue shuffles once per full document load, starts immediately when the glitch gate releases, loops continuously, and survives internal route navigation
+  - Added autoplay-block fallback via first user interaction (`pointerdown`/`keydown`/`touchstart`) while preserving queue order
+  - Exposed runtime diagnostics on `window.__mobdVisitMusic` for live verification of queue/index/state/errors
+  - Retuned startup timing so both queue music and synthetic soundscape key off the gate visual-release moment (`closing`) instead of delayed random bootstrap
+  - Fixed gate-blocked gesture propagation issue by moving unlock/resume listeners to capture phase and prewarming media during gate-time interactions
+- [x] Global glitch entry gate + ambient shell break/rebuild pass:
+  - Added `src/components/GlobalGlitchGate.tsx` and mounted it in `src/app/layout.tsx`
+  - Gate is unskippable and blocks pointer/keyboard/scroll while active
+  - Gate intentionally false-completes/regresses/stalls and always releases in finite 8-15s window
+  - Added gate styles/animations/lock classes in `src/app/globals.css`
+  - Extended `MAXIMUM_HOSTILITY` with `entryGate` and `shellAmbientCycle` config blocks
+  - Extended `ResonanceShellCorruptor` with `triggerMode` + `ambientBreakChance`
+  - Ambient scheduler now runs real shell break->heal corruption cycles
+  - Route usage updated to ambient-only shell corruption across home/tour/exhibits/help/settings/certificate
+- [x] Glitch gate visual clarity pass:
+  - Increased gate legibility/contrast and made loader intent explicit (`LOADING BAD DECISIONS`, large percent, ETA)
+  - Added animated spinner line, three sub-progress meters, and release reassurance copy
+  - Reworked gate panel styling to avoid "blank grid" appearance and read clearly as an active loading screen
+- [x] Glitch gate fail-safe readability patch:
+  - Added giant low-alpha `LOADING` watermark and strengthened contrast of panel typography/borders
+  - Enforced gate layer stacking (`isolation` + explicit z-index for scanline/background vs panel)
+  - Hardened duration start logic so the gate consistently runs within configured timing window
+- [x] Favicon reliability fix:
+  - Added static icon assets in `public/` (`favicon.png`, `apple-touch-icon.png`)
+  - Updated layout metadata icon links to point to `public` paths instead of app-local icon filename
+  - Removed dependency on malformed/volatile favicon route resolution
+- [x] Loader clarity + cache-resilient rendering v2:
+  - Added a critical inline-styled HUD inside `GlobalGlitchGate` so loading intent remains obvious even when class CSS is stale/degraded
+  - Added gate revision stamp (`gate rev: v2`) and version class token (`gate-v2`) for quick visual verification after rebuild/reload
+  - Strengthened gate visual hierarchy (noise lowest, failsafe mid, HUD highest) and reduced background camouflage
+  - Repositioned gate content stack with stronger near-center offset (left/down) via inline transform after debugging that earlier offset looked visually centered
+  - Hardened stack visibility by moving key stack layout/offset onto inline styles so cached class-css cannot collapse panel width
+- [x] Favicon pipeline hardening v2:
+  - Added valid multi-entry `public/favicon.ico` with `16x16`, `32x32`, and `48x48` icon records
+  - Regenerated `public/favicon.png` at `32x32` and `public/apple-touch-icon.png` at `180x180`
+  - Updated metadata icon order to prioritize `.ico` first, then explicit PNG variants
+  - Removed ambiguous `src/app/icon-error.png` artifact to avoid icon routing confusion
+- [x] Gate visibility + autoplay reliability hardening (dev/runtime):
+  - Added deterministic gate reset helpers and a dev-only HMR rearm path so loading HUD reliably reappears after Fast Refresh
+  - Upgraded gate presentation token to `gate-v3` and moved the primary HUD anchor to inline fixed positioning (near center, intentionally offset)
+  - Added `window.__mobdGateDebug` diagnostics (`active`, `closing`, `hmrRearmCount`, `lastMountedAt`, `lastReleasedAt`)
+  - Reworked `VisitMusicQueue` autoplay flow to use muted pre-roll fallback when unmuted autoplay is blocked, then auto-promote to audible with retry
+  - Extended `window.__mobdVisitMusic` diagnostics with `autoplayPath`, `isMutedNow`, `lastUnmuteAttemptAt`, and `unlockGestureSeen`
+  - Added `mobd:visit-music-started` signaling and soundscape resume probes so SFX startup tracks gate/music release timing instead of waiting on random hover/click side-effects
+- [x] Intro-synced gate runtime pass:
+  - Moved `intro.mp3` from project root to `public/audio/intro/intro.mp3`
+  - Extended `MAXIMUM_HOSTILITY.entryGate` with intro-track config (`introTrackUrl`, `fadeOutLeadMs`, `fallbackDurationMs`, `introVolume`)
+  - Refactored `GlobalGlitchGate` to drive duration from intro metadata with fallback, and run deterministic 5s synced fade (intro volume + gate opacity)
+  - Fixed dev gate loop/reset behavior by converting HMR rearm to mount-only logic (no render-loop dependency churn)
+  - Updated gate token to `gate-v4` and revision marker to `gate rev: v4`
+  - Shifted release contract timing: `mobd:glitch-gate-released` now fires after full gate teardown, not at fade start
+  - Updated queue/SFX gate checks so `VisitMusicQueue` and `AnnoyingSoundscape` begin only after full gate release
+  - Expanded `window.__mobdGateDebug` with intro lifecycle fields (`introDurationMs`, `remainingMs`, `fadeLeadMs`, `introState`)
+- [x] Loader visibility + SFX bootstrap hardening v5:
+  - Removed top-left `LOADING... PLEASE WAIT.` strip entirely so it cannot mask loader regressions
+  - Added inline core loader card watchdog in `GlobalGlitchGate`; if visibility check fails, a centered fallback card renders automatically
+  - Upgraded gate token/revision to `gate-v5` / `gate rev: v5`
+  - Extended `window.__mobdGateDebug` with `mainPanelVisible` and `fallbackMode`
+  - Added intro lifecycle events: `mobd:intro-audio-started`, `mobd:intro-audio-audible`, `mobd:intro-audio-blocked`
+  - Updated `AnnoyingSoundscape` for best-effort no-click bootstrap from intro lifecycle events while keeping gesture fallback for strict autoplay policies
+  - Added `window.__mobdSoundscapeDebug` (`ctxState`, `started`, `startPath`, `lastResumeAttemptAt`, `resumeAttempts`) for runtime verification
+- [x] Loader + autoplay hardening v6 (build/start parity):
+  - Upgraded gate token/revision to `gate-v6` / `gate rev: v6`
+  - Added portal-based centered fallback loader card (`data-gate-fallback-card`) with repeated visibility probing so the large loader remains visible if the main panel fails runtime visibility checks
+  - Added gate lifecycle phase diagnostics in `window.__mobdGateDebug` (`phase`, `fadeProgress`) and ensured intro audio metadata load is explicitly kicked with `audio.load()`
+  - Corrected soundscape gate-lock check to require both `html/body` locks be released before treating gate as complete
+  - Extended best-effort audio bootstrap listeners/probes (`pointermove` + intro pre-prime hooks) in `VisitMusicQueue` and `AnnoyingSoundscape` while preserving queue order/loop semantics
+- [x] Gate + audio interaction stabilization pass:
+  - Added tab-session gate visibility config in `MAXIMUM_HOSTILITY.entryGate` (`showOncePerTab`, `sessionKey`)
+  - Hardened gate lifecycle so timeline is authoritative (starts immediately from fallback duration and metadata only retimes within min/max bounds)
+  - Removed intro-track `ended` as a gate teardown trigger; gate now finalizes only on timeline completion with minimum-visible-duration satisfied
+  - Added gate diagnostics in `window.__mobdGateDebug`: `startReason`, `finalizeReason`, `timelineStartedAt`, `minVisibleSatisfied`
+  - Removed `pointermove` wake/unlock triggers from `AnnoyingSoundscape` and `VisitMusicQueue` to stop cursor-move audio spam
+  - Added gesture-trigger cooldown in soundscape wake path to prevent rapid click/keydown one-shot spam
+  - Updated visit music startup to prefer muted preroll on non-interaction boot, then promote to audible on real interaction (with in-flight unlock guard)
+- [x] Explicit pre-entry orchestration + deterministic gate/audio start:
+  - Added `GlobalEntryOrchestrator` full-screen pre-entry overlay (`Click to Enter Museum`) and mounted it in layout ahead of the global gate
+  - `GlobalGlitchGate` now arms only after entry confirmation, renders one deterministic center loader card, and removed fragile visibility watchdog/portal fallback branches
+  - Entry click now confirms user intent and pre-primes intro audio in the same gesture, then gate timeline/audio lifecycle starts from that path
+  - Visit music and soundscape startup paths are entry-confirmed gated; pointermove remains removed and discrete gesture unlock paths stay guarded/cooldown-limited
+- [x] Gate blank-screen hard failsafe patch:
+  - Added runtime core-card visibility probe in `GlobalGlitchGate`
+  - Added fixed-position inline `data-gate-failsafe-card` that appears automatically when the main gate card is not visibly rendered
+  - Keeps loading text/progress visible even if gate layout/CSS path degrades in dev runtime
+- [x] Entry overflow/scroll lock hardening:
+  - `GlobalEntryOrchestrator` now gates app mounting (`children`) until entry is confirmed, instead of rendering full page under the pre-entry overlay
+  - Added `global-entry-lock` root/body class while pre-entry is active to guarantee no giant document scroll before click
+- [x] Intro-aligned timing/audio ordering pass:
+  - Gate timeline now adopts intro metadata duration directly when available so loading progress length matches intro track length
+  - Reduced gate fade lead to 2s (`fadeOutLeadMs`)
+  - Removed intro-event bootstrap paths from `AnnoyingSoundscape` and `VisitMusicQueue` so SFX/loop queue begin only after gate release
+- [x] Entry sequencing + release-contract hardening pass:
+  - `GlobalEntryOrchestrator` now keeps full app content unmounted until gate release (`showChildren`) and holds `global-entry-lock` until release to prevent pre-gate overflow/scroll flicker
+  - Added class-based animated consent entry UI (grid/noise/card pulse/chips + accessible CTA/focus + reduced-motion support) replacing inline static overlay styles
+  - Added explicit gate lifecycle contract (`window.__mobdGateLifecycle`: `idle|arming|active|released`) and synced transitions in `GlobalGlitchGate`
+  - Tightened post-transition audio gating: `VisitMusicQueue` and `AnnoyingSoundscape` now use strict released-state checks (lifecycle + lock + gate node) and never start queue/SFX before release
+  - Hardened gate card visibility fallback: failsafe starts visible, hides only after confirmed core-card visibility frames, and uses aligned `data-gate-fallback-card` selector
 
 ## Current Structure
 
@@ -164,3 +264,15 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | 2026-02-17 | Added global random annoying soundscape and fixed-position mystery-meat glyph navigation |
 | 2026-02-17 | Increased soundscape trigger frequency and added random burst clusters |
 | 2026-02-17 | Expanded sound palette to 8 SFX patterns and raised output level with compression |
+| 2026-02-17 | Added unskippable global glitch entry gate on full loads and switched shell corruption to ambient-only real break/heal cycles |
+| 2026-02-17 | Retuned glitch entry gate visuals to be unmistakably a loading process with stronger status feedback and ETA |
+| 2026-02-17 | Fixed favicon fallback by serving icon assets from `public/` and updating metadata links |
+| 2026-02-17 | Added gate-v2 critical inline HUD fallback + revision stamp, hardened gate visual hierarchy, and rebuilt favicon assets (`.ico` multi-size + correctly sized PNGs) |
+| 2026-02-17 | Added global shuffled mp3 queue player (starts as soon as glitch gate unlocks, autoplay unlock fallback, endless loop) and relocated songs to `public/audio/playlist/` while keeping synthetic soundscape active |
+| 2026-02-17 | Hardened gate runtime for dev visibility (`gate-v3` inline HUD + HMR rearm debug), implemented muted pre-roll autoplay promotion for visit music, and aligned soundscape startup with gate/music release events |
+| 2026-02-17 | Moved `intro.mp3` to `public/audio/intro/`, rebuilt gate as intro-duration-driven (`gate-v4`) with 5s synced music+visual fade, fixed dev gate rearm loop, and shifted queue/SFX start to post-teardown release |
+| 2026-02-17 | Removed top-left strip and hardened centered loader visibility with watchdog fallback (`gate-v5`); added intro-audio lifecycle events and best-effort no-click soundscape bootstrap diagnostics |
+| 2026-02-17 | Promoted gate to `gate-v6` with portal fallback card + repeated visibility probing, tightened soundscape lock detection, and added extra intro/music pre-prime hooks for stronger no-click autoplay best-effort behavior |
+| 2026-02-17 | Stabilized gate/audio runtime: tab-session gate visibility, timeline-authoritative release (no intro-ended teardown), removed pointermove audio triggers, added wake cooldown + unlock in-flight guard, and switched non-interaction visit music startup to muted preroll-first |
+| 2026-02-17 | Added explicit click-to-enter orchestrator and refactored gate/audio startup to begin from that single gesture: deterministic center loader card rendering, entry-confirmed media priming, and maintained pointermove-free unlock behavior |
+| 2026-02-17 | Hardened entry sequencing and audio start contract: delayed full app mount until gate release, added explicit gate lifecycle state, enforced strict post-release queue/SFX start checks, upgraded entry screen to animated-readable class-based UI, and strengthened gate fallback-card visibility behavior |
