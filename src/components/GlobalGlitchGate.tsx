@@ -45,6 +45,7 @@ const GATE_RELEASE_EVENT = "mobd:glitch-gate-released";
 const INTRO_AUDIO_STARTED_EVENT = "mobd:intro-audio-started";
 const INTRO_AUDIO_AUDIBLE_EVENT = "mobd:intro-audio-audible";
 const INTRO_AUDIO_BLOCKED_EVENT = "mobd:intro-audio-blocked";
+const INCIDENT_BADGES = ["UNSTABLE", "CHECKSUM", "REROUTE"];
 
 const CORE_PANEL_STYLE: CSSProperties = {
   position: "relative",
@@ -132,6 +133,9 @@ declare global {
       releaseEventSent: boolean;
       introDurationMs: number | null;
       fadeLeadMs: number;
+      progressHoldAt100Ms: number;
+      fadeStartAtMs: number | null;
+      progressCompleteAtMs: number | null;
       remainingMs: number | null;
       introState: IntroState;
       startReason: GateStartReason;
@@ -152,6 +156,15 @@ function pick<T>(items: T[]): T {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function getTimingMilestones(durationMs: number, fadeLeadMs: number, progressHoldAt100Ms: number) {
+  const safeDuration = Math.max(1000, durationMs);
+  const effectiveFadeLead = Math.min(fadeLeadMs, safeDuration);
+  const fadeStartAtMs = Math.max(0, safeDuration - effectiveFadeLead);
+  const progressCompleteAtMs = Math.max(0, fadeStartAtMs - Math.max(0, progressHoldAt100Ms));
+
+  return { safeDuration, effectiveFadeLead, fadeStartAtMs, progressCompleteAtMs };
 }
 
 function blockEvent(event: { preventDefault: () => void; stopPropagation: () => void }) {
@@ -192,6 +205,7 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
   const introBlockedEventSentRef = useRef(false);
   const startReasonRef = useRef<GateStartReason>("idle");
   const finalizeReasonRef = useRef<GateFinalizeReason>("none");
+  const completionLatchedRef = useRef(false);
   const minVisibleSatisfiedRef = useRef(false);
   const hasActivatedRef = useRef(false);
   const prevArmedRef = useRef(false);
@@ -199,6 +213,8 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
   const coreCardVisibleFramesRef = useRef(0);
 
   const fadeLeadMs = MAXIMUM_HOSTILITY.entryGate.fadeOutLeadMs;
+  const progressHoldAt100Ms = MAXIMUM_HOSTILITY.entryGate.progressHoldAt100Ms ?? 600;
+  const chaosProfile = MAXIMUM_HOSTILITY.entryGate.chaosProfile ?? "aggressive-readable";
   const introVolume = MAXIMUM_HOSTILITY.entryGate.introVolume ?? 0.64;
   const fallbackDurationMs = MAXIMUM_HOSTILITY.entryGate.fallbackDurationMs;
   const fallbackMinDurationMs = Math.max(1000, MAXIMUM_HOSTILITY.entryGate.minDurationMs ?? 1000);
@@ -262,6 +278,8 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
   }, [introVolume]);
 
   const syncGateDebug = useCallback(() => {
+    const duration = Math.max(1000, durationMsRef.current);
+    const milestones = getTimingMilestones(duration, fadeLeadMs, progressHoldAt100Ms);
     window.__mobdGateDebug = {
       armed,
       active,
@@ -272,6 +290,9 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
       releaseEventSent: releaseEventSentRef.current,
       introDurationMs,
       fadeLeadMs,
+      progressHoldAt100Ms,
+      fadeStartAtMs: milestones.fadeStartAtMs,
+      progressCompleteAtMs: milestones.progressCompleteAtMs,
       remainingMs,
       introState,
       startReason: startReasonRef.current,
@@ -279,7 +300,7 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
       timelineStartedAt: startedAtRef.current,
       minVisibleSatisfied: minVisibleSatisfiedRef.current,
     };
-  }, [armed, active, gatePhase, closing, state.progress, fadeProgress, introDurationMs, fadeLeadMs, remainingMs, introState]);
+  }, [armed, active, gatePhase, closing, state.progress, fadeProgress, introDurationMs, fadeLeadMs, progressHoldAt100Ms, remainingMs, introState]);
 
   const emitReleaseEvent = useCallback(() => {
     if (releaseEventSentRef.current) return;
@@ -335,6 +356,7 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
     introStartedEventSentRef.current = false;
     introAudibleEventSentRef.current = false;
     introBlockedEventSentRef.current = false;
+    completionLatchedRef.current = false;
 
     startReasonRef.current = "armed_entry";
     finalizeReasonRef.current = "none";
@@ -417,6 +439,7 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
       clearTimers();
       setActive(false);
       completedRef.current = true;
+      completionLatchedRef.current = false;
       timelineStartedRef.current = false;
       startedAtRef.current = null;
       setIntroPlaybackState("idle");
@@ -583,8 +606,27 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
 
       const now = Date.now();
       const elapsed = Math.max(0, now - startedAt);
-      const duration = Math.max(1000, durationMsRef.current);
-      const timelineProgress = clamp((elapsed / duration) * 100, 0, 99);
+      const milestones = getTimingMilestones(durationMsRef.current, fadeLeadMs, progressHoldAt100Ms);
+      const duration = milestones.safeDuration;
+      const timelineProgress = clamp(
+        (elapsed / Math.max(1, milestones.progressCompleteAtMs)) * 100,
+        0,
+        99
+      );
+
+      if (elapsed >= milestones.progressCompleteAtMs || completionLatchedRef.current) {
+        completionLatchedRef.current = true;
+        rollbackAtRef.current = null;
+        setState((prev) => ({
+          ...prev,
+          progress: 100,
+          phase: "Finalizing near-complete state...",
+          incident: "Integrity seal accepted. Preparing visual fade.",
+        }));
+        const [minTick, maxTick] = MAXIMUM_HOSTILITY.entryGate.phaseTickRangeMs;
+        progressTickRef.current = window.setTimeout(tick, randomInRange(minTick, maxTick));
+        return;
+      }
 
       setState((prev) => {
         let nextProgress = prev.progress;
@@ -654,7 +696,7 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
         progressTickRef.current = null;
       }
     };
-  }, [active]);
+  }, [active, fadeLeadMs, progressHoldAt100Ms]);
 
   useEffect(() => {
     if (!active) return;
@@ -664,7 +706,8 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
       if (!timelineStartedRef.current || completedRef.current || startedAt === null) return;
 
       const now = Date.now();
-      const duration = Math.max(1000, durationMsRef.current);
+      const milestones = getTimingMilestones(durationMsRef.current, fadeLeadMs, progressHoldAt100Ms);
+      const duration = milestones.safeDuration;
       const elapsed = Math.max(0, now - startedAt);
       const remaining = Math.max(0, duration - elapsed);
       const minRemaining = Math.max(0, minVisibleMsRef.current - elapsed);
@@ -672,8 +715,18 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
       minVisibleSatisfiedRef.current = minVisibleSatisfied;
       setRemainingMs(Math.ceil(Math.max(remaining, minRemaining)));
 
-      const effectiveFadeLead = Math.min(fadeLeadMs, duration);
-      const shouldClose = remaining <= effectiveFadeLead;
+      if (elapsed >= milestones.progressCompleteAtMs && !completionLatchedRef.current) {
+        completionLatchedRef.current = true;
+        rollbackAtRef.current = null;
+        setState((prev) => ({
+          ...prev,
+          progress: 100,
+          phase: "Finalizing near-complete state...",
+          incident: "Integrity seal accepted. Preparing visual fade.",
+        }));
+      }
+
+      const shouldClose = elapsed >= milestones.fadeStartAtMs;
 
       if (shouldClose && !closingRef.current) {
         setGatePhase("fading");
@@ -682,7 +735,7 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
       }
 
       const nextFade = shouldClose
-        ? clamp((effectiveFadeLead - remaining) / Math.max(1, effectiveFadeLead), 0, 1)
+        ? clamp((elapsed - milestones.fadeStartAtMs) / Math.max(1, milestones.effectiveFadeLead), 0, 1)
         : 0;
 
       setFadeProgress(nextFade);
@@ -698,7 +751,7 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
         timelineTickRef.current = null;
       }
     };
-  }, [active, fadeLeadMs, finalizeGate]);
+  }, [active, fadeLeadMs, finalizeGate, progressHoldAt100Ms]);
 
   useEffect(() => {
     return () => setGateLifecycle("idle");
@@ -770,11 +823,12 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
     : Math.ceil(fallbackDurationMs / 1000);
   const spinner = SPINNER_FRAMES[spinnerIndex] || "[|]";
   const gateOpacity = clamp(1 - fadeProgress, 0, 1);
+  const incidentBadge = INCIDENT_BADGES[(spinnerIndex + progressLabel) % INCIDENT_BADGES.length] ?? "UNSTABLE";
 
   return (
     <div
       ref={gateRef}
-      className={`global-glitch-gate gate-v6 ${closing ? "closing" : ""}`}
+      className={`global-glitch-gate gate-v6 chaos-${chaosProfile} ${closing ? "closing" : ""}`}
       tabIndex={0}
       role="dialog"
       aria-modal="true"
@@ -792,13 +846,14 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
       onKeyDown={blockEvent}
       onKeyUp={blockEvent}
     >
-      <div ref={coreCardRef} data-gate-core-card style={CORE_PANEL_STYLE}>
-        <div style={TOPLINE_STYLE}>
-          <span>{spinner}</span>
-          <span style={{ color: "#bde2e6" }}>gate rev: v7</span>
-          <span>{progressLabel}%</span>
+      <div ref={coreCardRef} data-gate-core-card className="global-gate-card-chaos" style={CORE_PANEL_STYLE}>
+        <div className="global-gate-topline" style={TOPLINE_STYLE}>
+          <span className="global-gate-topline-spinner">{spinner}</span>
+          <span className="global-gate-topline-rev" style={{ color: "#bde2e6" }}>gate rev: v7</span>
+          <span className="global-gate-topline-percent">{progressLabel}%</span>
         </div>
-        <p style={TITLE_STYLE}>Loading Bad Decisions</p>
+        <p className="global-gate-incident-badge" aria-hidden>{incidentBadge}</p>
+        <p className="global-gate-title" style={TITLE_STYLE}>Loading Bad Decisions</p>
         <div style={METER_STYLE}>
           <div
             style={{
@@ -810,24 +865,30 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
             }}
           />
         </div>
-        <p style={{ margin: "0 0 2px", fontSize: "clamp(15px, 2.4vw, 23px)", letterSpacing: "0.04em", color: "#f9dfae" }}>
+        <p className="global-gate-phase" style={{ margin: "0 0 2px", fontSize: "clamp(15px, 2.4vw, 23px)", letterSpacing: "0.04em", color: "#f9dfae" }}>
           {state.phase}
         </p>
-        <p style={{ margin: 0, fontSize: "clamp(13px, 2.1vw, 19px)", color: "#dcc295", opacity: 0.93 }}>
+        <p className="global-gate-incident" style={{ margin: 0, fontSize: "clamp(13px, 2.1vw, 19px)", color: "#dcc295", opacity: 0.93 }}>
           {state.incident}
         </p>
-        <p style={{ margin: "10px 0 0", color: "#bcac89", fontFamily: "'VT323', monospace", fontSize: "14px" }}>
+        <div className="global-gate-fake-controls" aria-hidden>
+          <span className="global-gate-fake-control">REROUTE</span>
+          <span className="global-gate-fake-control">RETRY</span>
+          <span className="global-gate-fake-control">HOLD</span>
+        </div>
+        <p className="global-gate-eta" style={{ margin: "10px 0 0", color: "#bcac89", fontFamily: "'VT323', monospace", fontSize: "14px" }}>
           ETA ~{etaSeconds}s | stalls: {state.stalls} | regressions: {state.regressions} | false 100s: {state.falseCompletes}
         </p>
       </div>
       {showFailsafeCard ? (
-        <div data-gate-fallback-card style={FAILSAFE_PANEL_STYLE}>
-          <div style={TOPLINE_STYLE}>
-            <span>{spinner}</span>
-            <span style={{ color: "#bde2e6" }}>gate rev: v7</span>
-            <span>{progressLabel}%</span>
+        <div data-gate-fallback-card className="global-gate-card-chaos" style={FAILSAFE_PANEL_STYLE}>
+          <div className="global-gate-topline" style={TOPLINE_STYLE}>
+            <span className="global-gate-topline-spinner">{spinner}</span>
+            <span className="global-gate-topline-rev" style={{ color: "#bde2e6" }}>gate rev: v7</span>
+            <span className="global-gate-topline-percent">{progressLabel}%</span>
           </div>
-          <p style={TITLE_STYLE}>Loading Bad Decisions</p>
+          <p className="global-gate-incident-badge" aria-hidden>{incidentBadge}</p>
+          <p className="global-gate-title" style={TITLE_STYLE}>Loading Bad Decisions</p>
           <div style={METER_STYLE}>
             <div
               style={{
@@ -839,13 +900,18 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
               }}
             />
           </div>
-          <p style={{ margin: "0 0 2px", fontSize: "clamp(15px, 2.4vw, 23px)", letterSpacing: "0.04em", color: "#f9dfae" }}>
+          <p className="global-gate-phase" style={{ margin: "0 0 2px", fontSize: "clamp(15px, 2.4vw, 23px)", letterSpacing: "0.04em", color: "#f9dfae" }}>
             {state.phase}
           </p>
-          <p style={{ margin: 0, fontSize: "clamp(13px, 2.1vw, 19px)", color: "#dcc295", opacity: 0.93 }}>
+          <p className="global-gate-incident" style={{ margin: 0, fontSize: "clamp(13px, 2.1vw, 19px)", color: "#dcc295", opacity: 0.93 }}>
             {state.incident}
           </p>
-          <p style={{ margin: "10px 0 0", color: "#bcac89", fontFamily: "'VT323', monospace", fontSize: "14px" }}>
+          <div className="global-gate-fake-controls" aria-hidden>
+            <span className="global-gate-fake-control">REROUTE</span>
+            <span className="global-gate-fake-control">RETRY</span>
+            <span className="global-gate-fake-control">HOLD</span>
+          </div>
+          <p className="global-gate-eta" style={{ margin: "10px 0 0", color: "#bcac89", fontFamily: "'VT323', monospace", fontSize: "14px" }}>
             ETA ~{etaSeconds}s | stalls: {state.stalls} | regressions: {state.regressions} | false 100s: {state.falseCompletes}
           </p>
         </div>

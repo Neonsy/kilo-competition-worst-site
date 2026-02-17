@@ -32,8 +32,10 @@ export const MAXIMUM_HOSTILITY = {
   entryGate: {
     introTrackUrl: '/audio/intro/intro.mp3',
     fadeOutLeadMs: 2000,
+    progressHoldAt100Ms: 600,
     fallbackDurationMs: 12000,
-    introVolume: 0.18,
+    introVolume: 0.36,
+    chaosProfile: 'aggressive-readable' as const,
     requireExplicitEntry: true,
     entryLabel: 'Click to Enter Museum',
     showOncePerTab: false,

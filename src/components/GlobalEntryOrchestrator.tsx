@@ -27,6 +27,7 @@ export function GlobalEntryOrchestrator({ children }: GlobalEntryOrchestratorPro
   const [entered, setEntered] = useState(!requireExplicitEntry);
   const [gateReleased, setGateReleased] = useState(!requireExplicitEntry);
   const entryLabel = MAXIMUM_HOSTILITY.entryGate.entryLabel ?? 'Click to Enter Museum';
+  const entryChaosProfile = MAXIMUM_HOSTILITY.entryGate.chaosProfile ?? 'aggressive-readable';
   const showEntryPrompt = requireExplicitEntry && !entered;
   const showGate = requireExplicitEntry && entered;
   const showChildren = !requireExplicitEntry || gateReleased;
@@ -96,22 +97,45 @@ export function GlobalEntryOrchestrator({ children }: GlobalEntryOrchestratorPro
       {showChildren ? children : null}
 
       {showEntryPrompt ? (
-        <div role="dialog" aria-modal="true" aria-label="Museum entry gate" className="global-entry-consent">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Museum entry gate"
+          className={`global-entry-consent chaos-${entryChaosProfile}`}
+        >
           <span className="global-entry-consent-grid" aria-hidden />
           <span className="global-entry-consent-noise" aria-hidden />
           <div className="global-entry-consent-card">
+            <p className="global-entry-consent-ribbon" aria-hidden>
+              INCIDENT FEED: confidence drift detected
+            </p>
             <p className="global-entry-consent-kicker">Museum Entry Control</p>
-            <h2 className="global-entry-consent-title">Loading Sequence Requires Consent</h2>
+            <h2 className="global-entry-consent-title">
+              <span className="global-entry-consent-title-line line-a">Loading Sequence</span>
+              <span className="global-entry-consent-title-line line-b">Requires Consent</span>
+            </h2>
             <p className="global-entry-consent-copy">
-              One click starts entry lock, loading gate, and sound system.
+              <span className="global-entry-consent-copy-track">
+                One click starts entry lock, loading gate, and sound system.
+              </span>
+            </p>
+            <p className="global-entry-consent-ticker" aria-hidden>
+              <span className="global-entry-consent-ticker-track">
+                STATUS: unstable route map | AUDIO: handshake pending | ENTRY: one-way
+              </span>
             </p>
             <div className="global-entry-consent-chips" aria-hidden>
               <span className="global-entry-consent-chip">Audio Handshake</span>
               <span className="global-entry-consent-chip">Gate Link</span>
               <span className="global-entry-consent-chip">Session Stamp</span>
             </div>
+            <div className="global-entry-consent-status-rail" aria-hidden>
+              <span className="global-entry-consent-status-pill">Queue armed</span>
+              <span className="global-entry-consent-status-pill">Latency unstable</span>
+              <span className="global-entry-consent-status-pill">Rollback watch</span>
+            </div>
             <button type="button" onClick={handleEnter} className="global-entry-consent-cta">
-              {entryLabel}
+              <span className="global-entry-consent-cta-text">{entryLabel}</span>
             </button>
           </div>
         </div>
