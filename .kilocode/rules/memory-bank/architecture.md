@@ -12,9 +12,12 @@ src/
 │   ├── favicon.ico         # Multi-size site icon (16/32/48)
 │   ├── favicon.png         # Explicit 32x32 PNG fallback icon
 │   ├── apple-touch-icon.png# Explicit 180x180 Apple touch icon
-│   └── audio/
+│   ├── audio/
 │       ├── intro/          # Intro gate sync track
 │       └── playlist/       # Route-global music queue mp3 assets
+│   └── media/
+│       └── hostility/
+│           └── gifs/       # LivingOverlay hostile GIF assets (1.gif..5.gif)
 └── (expand as needed)
     ├── components/         # React components (add when needed)
     ├── lib/                # Utilities and helpers (add when needed)
@@ -33,7 +36,7 @@ src/
 │   ├── help/page.tsx               # Help/FAQ chaos page
 │   └── settings/page.tsx           # Meaningless settings page
 ├── components/
-│   ├── LivingOverlay.tsx           # Shared overlay engine for eventful dead-space fill
+│   ├── LivingOverlay.tsx           # Shared overlay engine for ribbons/ghosts/rifts + randomized GIF madness
 │   ├── CursorCorruptionLayer.tsx   # Global cursor corruption with personas/desync/ghost cursors
 │   ├── LoadingLabyrinthButton.tsx  # Staged loop/regress/false-complete loading gate
 │   ├── BureaucracyQueue.tsx        # Required minigame A
@@ -83,6 +86,16 @@ src/
   - `recovery tokens`, `pity-pass threshold`, `hard regression cap`
 - Event scheduling in maximum mode uses `scheduleTourEventMaximum(...)` from `tourEvents.ts` (trigger/cooldown-based, ignores phase).
 - Hostility constants are centralized in `src/data/maximumHostility.ts` and reused across routes/components.
+- `MAXIMUM_HOSTILITY.overlay.gifMadness` now defines aggressive-lite GIF runtime behavior:
+  - weighted asset pool (`/media/hostility/gifs/1.gif`..`5.gif`)
+  - spawn cadence + burst behavior
+  - desktop/mobile concurrent caps (4/3)
+  - opacity/size/rotation/TTL ranges + anchor selector list
+- `LivingOverlay.tsx` now runs a max-mode GIF scheduler:
+  - random target anchoring via visible DOM selector candidates
+  - fallback random dead-space placement when no anchors match
+  - strict non-blocking rendering (`pointer-events: none`)
+  - disabled under `prefers-reduced-motion: reduce`
 - Primitive runtime behavior uses `hostilityPrimitives.ts` defaults and reducer/event hooks.
 - Hostility mode contract:
   - `HOSTILITY_MODE = 'maximum'` in `hostilityPrimitives.ts`

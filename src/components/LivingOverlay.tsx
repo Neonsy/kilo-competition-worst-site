@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HostilityMode } from '@/data/hostilityPrimitives';
 import { MAXIMUM_HOSTILITY } from '@/data/maximumHostility';
 
@@ -14,6 +14,20 @@ interface LivingOverlayProps {
   mobileHostile?: boolean;
   eventPulse?: number;
   hostilityMode?: HostilityMode;
+}
+
+interface GifMadnessOverlay {
+  id: string;
+  src: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  opacity: number;
+  rotation: number;
+  expiresAt: number;
+  zBias: number;
+  animationSeed: number;
 }
 
 const ribbonCopy: Record<OverlayMode, string[]> = {
@@ -61,6 +75,38 @@ const intensityConfig: Record<OverlayIntensity, { badges: number; ghosts: number
   high: { badges: 7, ghosts: 8, occludeRate: 0.3 },
 };
 
+const gifMadnessConfig = MAXIMUM_HOSTILITY.overlay.gifMadness;
+
+const gifAspectBySrc: Record<string, number> = {
+  '/media/hostility/gifs/1.gif': 1,
+  '/media/hostility/gifs/2.gif': 1,
+  '/media/hostility/gifs/3.gif': 500 / 281,
+  '/media/hostility/gifs/4.gif': 1,
+  '/media/hostility/gifs/5.gif': 1,
+};
+
+function randomInRange(min: number, max: number): number {
+  return min + Math.random() * (max - min);
+}
+
+function randomIntInRange(min: number, max: number): number {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function pickWeightedGifAsset(): string {
+  const totalWeight = gifMadnessConfig.assets.reduce((sum, asset) => sum + asset.weight, 0);
+  let cursor = Math.random() * totalWeight;
+  for (const asset of gifMadnessConfig.assets) {
+    cursor -= asset.weight;
+    if (cursor <= 0) return asset.src;
+  }
+  return gifMadnessConfig.assets[0]?.src || '/media/hostility/gifs/1.gif';
+}
+
 export function LivingOverlay({
   mode,
   phase = 1,
@@ -73,6 +119,9 @@ export function LivingOverlay({
   const [showOccluder, setShowOccluder] = useState(false);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [fractureNotices, setFractureNotices] = useState<Array<{ id: string; left: string; top: string; text: string }>>([]);
+  const [gifOverlays, setGifOverlays] = useState<GifMadnessOverlay[]>([]);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
 
   const isMaximum = hostilityMode === 'maximum';
   const effectivePhase = isMaximum ? 3 : phase;
@@ -86,6 +135,66 @@ export function LivingOverlay({
     : config;
   const ribbons = ribbonCopy[mode];
   const telemetry = telemetryCopy[mode];
+
+  const buildGifOverlay = useCallback((now: number, mobile: boolean): GifMadnessOverlay => {
+    const src = pickWeightedGifAsset();
+    const ratio = gifAspectBySrc[src] || 1;
+    const baseSize = randomInRange(gifMadnessConfig.sizeRangePx[0], gifMadnessConfig.sizeRangePx[1]);
+    const scale = randomInRange(gifMadnessConfig.scaleRange[0], gifMadnessConfig.scaleRange[1]);
+    const width = Math.round(baseSize * scale * (mobile ? 0.82 : 1));
+    const height = Math.max(48, Math.round(width / ratio));
+    const edgePadding = gifMadnessConfig.edgePaddingPx;
+
+    const rootRect = overlayRef.current?.getBoundingClientRect();
+    let x: number = edgePadding;
+    let y: number = edgePadding;
+
+    if (rootRect && rootRect.width > width + edgePadding * 2 && rootRect.height > height + edgePadding * 2) {
+      const selector = gifMadnessConfig.targetSelectors.join(',');
+      const targets = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(node => {
+        if (overlayRef.current?.contains(node)) return false;
+        const style = window.getComputedStyle(node);
+        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) < 0.08) return false;
+        const rect = node.getBoundingClientRect();
+        if (rect.width < 20 || rect.height < 14) return false;
+        const outside =
+          rect.right < rootRect.left ||
+          rect.left > rootRect.right ||
+          rect.bottom < rootRect.top ||
+          rect.top > rootRect.bottom;
+        return !outside;
+      });
+
+      if (targets.length > 0) {
+        const target = targets[Math.floor(Math.random() * targets.length)];
+        const rect = target.getBoundingClientRect();
+        const anchorX = rect.left - rootRect.left + rect.width * randomInRange(0.18, 0.82);
+        const anchorY = rect.top - rootRect.top + rect.height * randomInRange(0.18, 0.82);
+        x = anchorX - width * randomInRange(0.25, 0.75);
+        y = anchorY - height * randomInRange(0.25, 0.75);
+      } else {
+        x = randomInRange(edgePadding, rootRect.width - width - edgePadding);
+        y = randomInRange(edgePadding, rootRect.height - height - edgePadding);
+      }
+
+      x = clamp(x, edgePadding, rootRect.width - width - edgePadding);
+      y = clamp(y, edgePadding, rootRect.height - height - edgePadding);
+    }
+
+    return {
+      id: `gif-${now}-${Math.random().toString(36).slice(2, 9)}`,
+      src,
+      x,
+      y,
+      w: width,
+      h: height,
+      opacity: randomInRange(gifMadnessConfig.opacityRange[0], gifMadnessConfig.opacityRange[1]),
+      rotation: randomInRange(gifMadnessConfig.rotationRangeDeg[0], gifMadnessConfig.rotationRangeDeg[1]),
+      expiresAt: now + randomIntInRange(gifMadnessConfig.ttlRangeMs[0], gifMadnessConfig.ttlRangeMs[1]),
+      zBias: randomIntInRange(0, 6),
+      animationSeed: Math.random(),
+    };
+  }, []);
 
   useEffect(() => {
     const ticker = setInterval(() => setTick(prev => prev + 1), 1700);
@@ -114,6 +223,67 @@ export function LivingOverlay({
     }, isMaximum ? 2400 : 3200);
     return () => clearInterval(occluder);
   }, [activeConfig.occludeRate, eventPulse, isMaximum, phase]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = () => setPrefersReducedMotion(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+
+  useEffect(() => {
+    if (!isMaximum || prefersReducedMotion) {
+      setGifOverlays([]);
+      return;
+    }
+
+    let timeoutId: number | undefined;
+    const prune = window.setInterval(() => {
+      const now = Date.now();
+      setGifOverlays(prev => prev.filter(item => item.expiresAt > now));
+    }, 700);
+
+    const scheduleSpawn = () => {
+      const delay = randomIntInRange(gifMadnessConfig.spawnIntervalRangeMs[0], gifMadnessConfig.spawnIntervalRangeMs[1]);
+      timeoutId = window.setTimeout(() => {
+        const now = Date.now();
+        const mobile = window.matchMedia('(max-width: 768px)').matches;
+        const cap = mobile ? gifMadnessConfig.maxActiveMobile : gifMadnessConfig.maxActiveDesktop;
+        setGifOverlays(prev => {
+          const alive = prev.filter(item => item.expiresAt > now);
+          let slots = Math.max(0, cap - alive.length);
+          if (slots === 0) return alive;
+
+          let spawnCount = 1;
+          if (Math.random() < gifMadnessConfig.burstChance) {
+            spawnCount += randomIntInRange(
+              gifMadnessConfig.burstExtraCountRange[0],
+              gifMadnessConfig.burstExtraCountRange[1]
+            );
+          }
+          spawnCount = Math.min(spawnCount, slots);
+          const next = [...alive];
+          while (spawnCount > 0) {
+            next.push(buildGifOverlay(now + spawnCount, mobile));
+            spawnCount -= 1;
+            slots -= 1;
+            if (slots <= 0) break;
+          }
+          return next;
+        });
+        scheduleSpawn();
+      }, delay);
+    };
+
+    scheduleSpawn();
+
+    return () => {
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      window.clearInterval(prune);
+    };
+  }, [buildGifOverlay, isMaximum, prefersReducedMotion]);
 
   useEffect(() => {
     if (!isMaximum) {
@@ -176,7 +346,7 @@ export function LivingOverlay({
   );
 
   return (
-    <div className={`living-overlay-layer ${mobileHostile ? 'living-overlay-mobile-hostile' : ''}`}>
+    <div ref={overlayRef} className={`living-overlay-layer ${mobileHostile ? 'living-overlay-mobile-hostile' : ''}`}>
       <div className="living-overlay-ribbon living-overlay-ribbon-top">
         {ribbons[bannerIndex]}
       </div>
@@ -211,6 +381,39 @@ export function LivingOverlay({
           />
         ))}
       </div>
+
+      {isMaximum && !prefersReducedMotion && (
+        <div className="living-overlay-gif-field" aria-hidden>
+          {gifOverlays.map(overlay => {
+            const gifStyle = {
+              left: `${overlay.x}px`,
+              top: `${overlay.y}px`,
+              width: `${overlay.w}px`,
+              height: `${overlay.h}px`,
+              opacity: overlay.opacity,
+              zIndex: 2 + overlay.zBias,
+              animationDelay: `-${(0.4 + overlay.animationSeed * 1.9).toFixed(2)}s`,
+              animationDuration: `${(2.3 + overlay.animationSeed * 2.4).toFixed(2)}s`,
+              '--gif-seed': overlay.animationSeed,
+              '--gif-rot': `${overlay.rotation}deg`,
+            } as CSSProperties;
+            return (
+              // Animated GIF overlays are intentionally unoptimized decorative noise.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={overlay.id}
+                src={overlay.src}
+                alt=""
+                aria-hidden
+                draggable={false}
+                decoding="async"
+                className="living-overlay-gif"
+                style={gifStyle}
+              />
+            );
+          })}
+        </div>
+      )}
 
       <div className="living-overlay-badge-field">
         {badges.map(badge => (

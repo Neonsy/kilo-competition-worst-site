@@ -1049,6 +1049,25 @@ body::after {
   }
 }
 
+@keyframes overlay-gif-chaos {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(var(--gif-rot, 0deg)) scale(1);
+    filter: saturate(1.08) contrast(1.04) hue-rotate(calc(var(--gif-seed, 0) * 12deg));
+  }
+  40% {
+    transform: translate3d(3px, -2px, 0) rotate(calc(var(--gif-rot, 0deg) - 1.8deg)) scale(1.02);
+    filter: saturate(1.22) contrast(1.12) hue-rotate(calc(var(--gif-seed, 0) * 22deg));
+  }
+  70% {
+    transform: translate3d(-2px, 3px, 0) rotate(calc(var(--gif-rot, 0deg) + 2.1deg)) scale(0.98);
+    filter: saturate(1.18) contrast(1.08) hue-rotate(calc(var(--gif-seed, 0) * -16deg));
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--gif-rot, 0deg)) scale(1);
+    filter: saturate(1.08) contrast(1.04) hue-rotate(calc(var(--gif-seed, 0) * 12deg));
+  }
+}
+
 .living-overlay-layer {
   position: absolute;
   inset: 0;
@@ -1095,6 +1114,25 @@ body::after {
 .living-overlay-ghost-field {
   position: absolute;
   inset: 0;
+}
+
+.living-overlay-gif-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.living-overlay-gif {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  object-fit: cover;
+  border: 1px solid rgba(255, 0, 0, 0.32);
+  mix-blend-mode: screen;
+  box-shadow: 0 0 14px rgba(255, 0, 0, 0.2);
+  animation: overlay-gif-chaos 2.8s steps(2, end) infinite;
 }
 
 .living-overlay-ghost {
@@ -1194,6 +1232,22 @@ body::after {
 
   .mobile-hostile-panel {
     margin-top: -8px;
+  }
+
+  .living-overlay-gif {
+    max-width: 42vw;
+    max-height: 36vw;
+    opacity: 0.88;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .living-overlay-gif-field {
+    display: none;
+  }
+
+  .living-overlay-gif {
+    animation: none !important;
   }
 }
 

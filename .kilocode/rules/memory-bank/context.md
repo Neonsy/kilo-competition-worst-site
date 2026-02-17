@@ -200,6 +200,11 @@ A deliberately awful website that masquerades as an interactive museum of terrib
   - Fade starts only at `fadeStartAtMs`; release contract remains timeline-authoritative and unchanged
   - Added aggressive-readable kinetics for both consent and gate cards: split glitching title lines, marquee/sway text tracks, animated status rail, and non-interactive fake gate controls (`REROUTE`/`RETRY`/`HOLD`) with `prefers-reduced-motion` fallbacks
   - Retuned aggressive profile into volatile spatial+temporal instability (burst shears/desync spikes) and enabled chaotic consent CTA hitbox drift while preserving a medium readability floor
+- [x] Aggressive-lite GIF overlay madness pass:
+  - Moved root GIF assets (`1.gif`..`5.gif`) into `public/media/hostility/gifs/`
+  - Extended `MAXIMUM_HOSTILITY.overlay` with `gifMadness` config (asset weights, spawn cadence, burst behavior, size/opacity/rotation ranges, anchor selectors, desktop/mobile caps)
+  - Extended `LivingOverlay` with randomized max-mode GIF overlays anchored to random visible UI targets and fallback dead-space placement
+  - Added non-blocking GIF overlay CSS in `globals.css` with blend/noise styling and reduced-motion disable path
 
 ## Current Structure
 
@@ -283,3 +288,4 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | 2026-02-17 | Stabilized gate/audio runtime: tab-session gate visibility, timeline-authoritative release (no intro-ended teardown), removed pointermove audio triggers, added wake cooldown + unlock in-flight guard, and switched non-interaction visit music startup to muted preroll-first |
 | 2026-02-17 | Added explicit click-to-enter orchestrator and refactored gate/audio startup to begin from that single gesture: deterministic center loader card rendering, entry-confirmed media priming, and maintained pointermove-free unlock behavior |
 | 2026-02-17 | Hardened entry sequencing and audio start contract: delayed full app mount until gate release, added explicit gate lifecycle state, enforced strict post-release queue/SFX start checks, upgraded entry screen to animated-readable class-based UI, and strengthened gate fallback-card visibility behavior |
+| 2026-02-17 | Added aggressive-lite GIF madness overlays across all LivingOverlay routes by moving GIF assets into `public/media/hostility/gifs`, adding weighted max-mode spawn config, and wiring non-blocking randomized UI-anchored GIF overlays with reduced-motion disable support |
