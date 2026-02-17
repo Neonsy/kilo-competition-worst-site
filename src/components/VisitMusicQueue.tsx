@@ -1,6 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
+import {
+  AUDIO_SCENE_LOCK_EVENT,
+  AUDIO_SCENE_RELEASE_EVENT,
+  type AudioScene,
+  type AudioSceneLockDetail,
+  type AudioSceneReleaseDetail,
+} from '@/lib/audioSceneBus';
 
 type VisitMusicState =
   | 'idle'
@@ -26,6 +33,8 @@ type VisitMusicDebug = {
   isMutedNow: boolean;
   lastUnmuteAttemptAt: number | null;
   unlockGestureSeen: boolean;
+  sceneLock: AudioScene | 'none';
+  resumePendingFromSceneRelease: boolean;
 };
 
 type VisitMusicRuntime = VisitMusicDebug & {
@@ -42,6 +51,8 @@ type VisitMusicRuntime = VisitMusicDebug & {
   gateReleaseHandler: (() => void) | null;
   endedHandler: (() => void) | null;
   errorHandler: (() => void) | null;
+  audioSceneLockHandler: ((event: Event) => void) | null;
+  audioSceneReleaseHandler: ((event: Event) => void) | null;
   unmuteRetryTimerId: number | null;
   unmuteDelayTimerId: number | null;
   volumeRampTimerId: number | null;
@@ -99,6 +110,8 @@ function syncDebug(runtime: VisitMusicRuntime) {
     isMutedNow: runtime.isMutedNow,
     lastUnmuteAttemptAt: runtime.lastUnmuteAttemptAt,
     unlockGestureSeen: runtime.unlockGestureSeen,
+    sceneLock: runtime.sceneLock,
+    resumePendingFromSceneRelease: runtime.resumePendingFromSceneRelease,
   };
 }
 
@@ -125,6 +138,10 @@ function clearUnmuteTimers(runtime: VisitMusicRuntime) {
 function nextIndex(runtime: VisitMusicRuntime): number {
   if (!runtime.queue.length) return 0;
   return (runtime.currentIndex + 1) % runtime.queue.length;
+}
+
+function isSceneLocked(runtime: VisitMusicRuntime): boolean {
+  return runtime.sceneLock !== 'none';
 }
 
 function isGateLocked(): boolean {
@@ -221,6 +238,7 @@ async function primeAudioFromGesture(runtime: VisitMusicRuntime): Promise<void> 
 }
 
 async function primeAudioForAutoplay(runtime: VisitMusicRuntime): Promise<void> {
+  if (isSceneLocked(runtime)) return;
   if (!runtime.queue.length) return;
   const audio = getAudio(runtime);
   ensureCurrentSrc(runtime, audio);
@@ -247,6 +265,7 @@ async function primeAudioForAutoplay(runtime: VisitMusicRuntime): Promise<void> 
 }
 
 async function startMutedPreroll(runtime: VisitMusicRuntime): Promise<'ok' | 'blocked' | 'error'> {
+  if (isSceneLocked(runtime)) return 'blocked';
   if (!runtime.queue.length) return 'error';
   const audio = getAudio(runtime);
   ensureCurrentSrc(runtime, audio);
@@ -296,6 +315,7 @@ async function startMutedPreroll(runtime: VisitMusicRuntime): Promise<'ok' | 'bl
 }
 
 async function startAudible(runtime: VisitMusicRuntime, fromInteraction: boolean): Promise<'ok' | 'blocked' | 'error'> {
+  if (isSceneLocked(runtime)) return 'blocked';
   if (!runtime.queue.length) return 'error';
   const audio = getAudio(runtime);
   ensureCurrentSrc(runtime, audio);
@@ -344,6 +364,7 @@ async function startAudible(runtime: VisitMusicRuntime, fromInteraction: boolean
 }
 
 async function promoteMutedToAudible(runtime: VisitMusicRuntime, source: 'auto' | 'interaction'): Promise<void> {
+  if (isSceneLocked(runtime)) return;
   if (!runtime.queue.length) return;
 
   const audio = getAudio(runtime);
@@ -385,6 +406,7 @@ async function promoteMutedToAudible(runtime: VisitMusicRuntime, source: 'auto' 
 }
 
 function recoverToNextTrack(runtime: VisitMusicRuntime, fromInteraction: boolean) {
+  if (isSceneLocked(runtime)) return;
   if (!runtime.queue.length) return;
 
   if (runtime.failureStreak > runtime.queue.length * 2) {
@@ -402,6 +424,7 @@ function recoverToNextTrack(runtime: VisitMusicRuntime, fromInteraction: boolean
 }
 
 async function playCurrent(runtime: VisitMusicRuntime, fromInteraction: boolean): Promise<void> {
+  if (isSceneLocked(runtime)) return;
   if (!runtime.queue.length) return;
 
   if (!fromInteraction) {
@@ -445,6 +468,7 @@ function attachUnlock(runtime: VisitMusicRuntime) {
   if (runtime.unlockAttached) return;
 
   runtime.unlockHandler = () => {
+    if (isSceneLocked(runtime)) return;
     if (!runtime.entryConfirmed) return;
     runtime.unlockGestureSeen = true;
     syncDebug(runtime);
@@ -484,6 +508,57 @@ function attachUnlock(runtime: VisitMusicRuntime) {
   runtime.unlockAttached = true;
 }
 
+function lockForScene(runtime: VisitMusicRuntime, detail: AudioSceneLockDetail) {
+  runtime.sceneLock = detail.scene;
+  runtime.resumePendingFromSceneRelease = true;
+  runtime.unlockInFlight = false;
+  clearUnmuteTimers(runtime);
+  clearVolumeRamp(runtime);
+  if (runtime.audio) {
+    runtime.audio.pause();
+  }
+  runtime.state = 'idle';
+  runtime.isMutedNow = true;
+  syncDebug(runtime);
+}
+
+function releaseForScene(runtime: VisitMusicRuntime, detail: AudioSceneReleaseDetail) {
+  if (runtime.sceneLock !== detail.scene) return;
+  runtime.sceneLock = 'none';
+  runtime.resumePendingFromSceneRelease = detail.resumeQueueFromNext;
+  clearUnmuteTimers(runtime);
+  clearVolumeRamp(runtime);
+
+  if (detail.resumeQueueFromNext) {
+    runtime.currentIndex = nextIndex(runtime);
+    runtime.resumePendingFromSceneRelease = false;
+    syncDebug(runtime);
+    void playCurrent(runtime, true);
+    return;
+  }
+
+  syncDebug(runtime);
+}
+
+function bindSceneEvents(runtime: VisitMusicRuntime) {
+  if (runtime.audioSceneLockHandler && runtime.audioSceneReleaseHandler) return;
+
+  runtime.audioSceneLockHandler = (event: Event) => {
+    const detail = (event as CustomEvent<AudioSceneLockDetail>).detail;
+    if (!detail || detail.scene !== 'certificate') return;
+    lockForScene(runtime, detail);
+  };
+
+  runtime.audioSceneReleaseHandler = (event: Event) => {
+    const detail = (event as CustomEvent<AudioSceneReleaseDetail>).detail;
+    if (!detail || detail.scene !== 'certificate') return;
+    releaseForScene(runtime, detail);
+  };
+
+  window.addEventListener(AUDIO_SCENE_LOCK_EVENT, runtime.audioSceneLockHandler);
+  window.addEventListener(AUDIO_SCENE_RELEASE_EVENT, runtime.audioSceneReleaseHandler);
+}
+
 function ensureRuntime(): VisitMusicRuntime {
   if (!window.__mobdVisitMusicRuntime) {
     window.__mobdVisitMusicRuntime = {
@@ -498,6 +573,8 @@ function ensureRuntime(): VisitMusicRuntime {
       isMutedNow: false,
       lastUnmuteAttemptAt: null,
       unlockGestureSeen: false,
+      sceneLock: 'none',
+      resumePendingFromSceneRelease: false,
       audio: null,
       booted: false,
       started: false,
@@ -511,6 +588,8 @@ function ensureRuntime(): VisitMusicRuntime {
       gateReleaseHandler: null,
       endedHandler: null,
       errorHandler: null,
+      audioSceneLockHandler: null,
+      audioSceneReleaseHandler: null,
       unmuteRetryTimerId: null,
       unmuteDelayTimerId: null,
       volumeRampTimerId: null,
@@ -522,6 +601,11 @@ function ensureRuntime(): VisitMusicRuntime {
     throw new Error('VisitMusic runtime unavailable');
   }
 
+  runtime.sceneLock = runtime.sceneLock ?? 'none';
+  runtime.resumePendingFromSceneRelease = runtime.resumePendingFromSceneRelease ?? false;
+  runtime.audioSceneLockHandler = runtime.audioSceneLockHandler ?? null;
+  runtime.audioSceneReleaseHandler = runtime.audioSceneReleaseHandler ?? null;
+
   syncDebug(runtime);
   return runtime;
 }
@@ -531,6 +615,7 @@ function bindAudioEvents(runtime: VisitMusicRuntime) {
   if (runtime.endedHandler && runtime.errorHandler) return;
 
   runtime.endedHandler = () => {
+    if (isSceneLocked(runtime)) return;
     runtime.failureStreak = 0;
     runtime.currentIndex = nextIndex(runtime);
     syncDebug(runtime);
@@ -544,6 +629,7 @@ function bindAudioEvents(runtime: VisitMusicRuntime) {
   };
 
   runtime.errorHandler = () => {
+    if (isSceneLocked(runtime)) return;
     runtime.failureStreak += 1;
     runtime.lastError = audio.error
       ? `MediaError ${audio.error.code}`
@@ -563,6 +649,7 @@ function boot(runtime: VisitMusicRuntime) {
 
   runtime.booted = true;
   bindAudioEvents(runtime);
+  bindSceneEvents(runtime);
   attachUnlock(runtime);
 
   const startNow = () => {

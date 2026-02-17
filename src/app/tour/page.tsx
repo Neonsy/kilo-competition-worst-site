@@ -62,6 +62,22 @@ interface MinigameStat {
 
 type CursorPersona = 'pointer' | 'text' | 'wait' | 'not-allowed' | 'crosshair';
 type ChaosContractType = 'clean-run' | 'speed-window' | 'steady-hand' | 'minigame-discipline';
+type AssistTier = 0 | 1 | 2;
+
+interface MinigameStatusPayload {
+  mode: 'building' | 'submitted' | 'running' | 'failed' | 'passed';
+  fails: number;
+  selectedCount?: number;
+  cycle?: number;
+  moves?: number;
+  round?: number;
+  timeLeft?: number;
+  lastResetReason?: string;
+}
+
+interface ActiveMinigameStatus extends MinigameStatusPayload {
+  gameId: MinigameId;
+}
 
 interface ChaosContract {
   id: string;
@@ -97,6 +113,8 @@ interface TourRunState {
   eventSeed: number;
   startedAt: number;
   attempts: Record<number, number>;
+  stepFailStreak: Record<number, number>;
+  minigameFailStreak: Record<MinigameId, number>;
   lastEventAt: number;
   hardRegressions: number;
   phaseStats: Record<1 | 2 | 3, { attempts: number; events: number; regressions: number }>;
@@ -150,6 +168,10 @@ type TourAction =
   | { type: 'SET_STEP'; step: number }
   | { type: 'SET_LOCKOUT'; until: number }
   | { type: 'SET_INTERACTION_STATE'; patch: Partial<TourRunState['interactionState']> }
+  | { type: 'INCREMENT_STEP_FAIL_STREAK'; step: number }
+  | { type: 'RESET_STEP_FAIL_STREAK'; step: number }
+  | { type: 'INCREMENT_MINIGAME_FAIL_STREAK'; gameId: MinigameId }
+  | { type: 'RESET_MINIGAME_FAIL_STREAK'; gameId: MinigameId }
   | { type: 'CLEAR_INPUT_CORRUPTION' }
   | { type: 'CONSUME_RECOVERY' }
   | { type: 'ADD_STRIKE'; count?: number }
@@ -170,6 +192,12 @@ const CATASTROPHIC_COOLDOWN_MS = 12000;
 const EFFECTIVE_PHASE: 1 | 2 | 3 = 3;
 const speedWindowDefaultMs = 11000;
 const speedWindowPityMs = 14000;
+
+function getAssistTierFromStreak(streak: number): AssistTier {
+  if (streak >= 5) return 2;
+  if (streak >= 3) return 1;
+  return 0;
+}
 
 function createChaosContract(step: number, question: TourQuestion | undefined, roll: number): ChaosContract {
   const contractTypes: ChaosContractType[] =
@@ -231,6 +259,12 @@ function createInitialRunState(): TourRunState {
     eventSeed: seed,
     startedAt: 0,
     attempts: {},
+    stepFailStreak: {},
+    minigameFailStreak: {
+      'bureaucracy-queue': 0,
+      'maze-consent': 0,
+      'captcha-gauntlet': 0,
+    },
     lastEventAt: 0,
     hardRegressions: 0,
     phaseStats: {
@@ -346,6 +380,38 @@ function tourReducer(state: TourRunState, action: TourAction): TourRunState {
       return { ...state, lockouts: { ...state.lockouts, nextUntil: Math.max(state.lockouts.nextUntil, action.until) } };
     case 'SET_INTERACTION_STATE':
       return { ...state, interactionState: { ...state.interactionState, ...action.patch } };
+    case 'INCREMENT_STEP_FAIL_STREAK':
+      return {
+        ...state,
+        stepFailStreak: {
+          ...state.stepFailStreak,
+          [action.step]: (state.stepFailStreak[action.step] || 0) + 1,
+        },
+      };
+    case 'RESET_STEP_FAIL_STREAK':
+      return {
+        ...state,
+        stepFailStreak: {
+          ...state.stepFailStreak,
+          [action.step]: 0,
+        },
+      };
+    case 'INCREMENT_MINIGAME_FAIL_STREAK':
+      return {
+        ...state,
+        minigameFailStreak: {
+          ...state.minigameFailStreak,
+          [action.gameId]: (state.minigameFailStreak[action.gameId] || 0) + 1,
+        },
+      };
+    case 'RESET_MINIGAME_FAIL_STREAK':
+      return {
+        ...state,
+        minigameFailStreak: {
+          ...state.minigameFailStreak,
+          [action.gameId]: 0,
+        },
+      };
     case 'CLEAR_INPUT_CORRUPTION':
       return { ...state, debuffs: { ...state.debuffs, inputCorruption: false } };
     case 'ADD_STRIKE':
@@ -638,6 +704,7 @@ function TourContent() {
   const [pulseState, setPulseState] = useState(initialResonancePulseState);
   const [feed, setFeed] = useState<string[]>(['Hostility engine armed.', 'Route entropy rising.']);
   const [contractFeedback, setContractFeedback] = useState<ChaosContractFeedback | null>(null);
+  const [minigameStatus, setMinigameStatus] = useState<ActiveMinigameStatus | null>(null);
   const [cursorChaosTelemetry, setCursorChaosTelemetry] = useState<CursorChaosTelemetry>({
     trailNodesSpawned: 0,
     decoyActivations: 0,
@@ -653,9 +720,17 @@ function TourContent() {
 
   const exhibitParam = searchParams.get('exhibit');
   const currentQuestion = getQuestionByNumber(runState.step);
+  const currentMinigameId = currentQuestion?.type === 'minigame' ? currentQuestion.minigameId : undefined;
   const phase = EFFECTIVE_PHASE;
   const attemptsOnCurrentStep = runState.attempts[runState.step] || 0;
   const pityPass = attemptsOnCurrentStep >= PITY_PASS_TRIGGER;
+  const currentStepFailStreak = runState.stepFailStreak[runState.step] || 0;
+  const currentMinigameFailStreak = currentMinigameId ? runState.minigameFailStreak[currentMinigameId] || 0 : 0;
+  const activeFailStreak = Math.max(currentStepFailStreak, currentMinigameFailStreak);
+  const assistTier = getAssistTierFromStreak(activeFailStreak);
+  const effectivePityForSabotage = pityPass || (currentQuestion?.type === 'minigame' && assistTier >= 1);
+  const eventAssistMultiplier = assistTier >= 2 ? 0.68 : assistTier >= 1 ? 0.82 : 1;
+  const validationStreakRelief = Math.min(0.24, currentStepFailStreak * 0.05);
   const currentContract = runState.skillChaos.activeContract;
   const skinMap = runState.interactionState.activeSkinMap;
   const minigamePasses = useMemo(
@@ -701,6 +776,14 @@ function TourContent() {
     return () => window.clearTimeout(timer);
   }, [contractFeedback]);
 
+  useEffect(() => {
+    if (currentQuestion?.type !== 'minigame' || !currentQuestion.minigameId) {
+      setMinigameStatus(null);
+      return;
+    }
+    setMinigameStatus(prev => (prev?.gameId === currentQuestion.minigameId ? prev : null));
+  }, [currentQuestion?.id, currentQuestion?.minigameId, currentQuestion?.type]);
+
   const pushFeed = useCallback((line: string) => {
     setFeed(prev => [line, ...prev].slice(0, 8));
   }, []);
@@ -729,6 +812,13 @@ function TourContent() {
       remapPeakActiveControls: Math.max(prev.remapPeakActiveControls, status.active),
     }));
   }, []);
+
+  const handleMinigameStatus = useCallback(
+    (gameId: MinigameId, status: MinigameStatusPayload) => {
+      setMinigameStatus({ gameId, ...status });
+    },
+    []
+  );
 
   const triggerSkinMutation = useCallback(
     (reason: string, module?: SkinModule, bypassChance = false) => {
@@ -908,10 +998,20 @@ function TourContent() {
 
   const validateStep = (question: TourQuestion, mercy: boolean): boolean => {
     const answer = answers[question.id];
-    const randomFailChance = Math.min(
+    const baseRandomFailChance = Math.min(
       0.08 + question.difficultyWeight * 0.07 + runState.instability * 0.002 + MAXIMUM_HOSTILITY.tour.randomValidationAdditive,
       0.62
     );
+    let adjustedRandomFailChance = Math.min(
+      0.62,
+      Math.max(0.08, baseRandomFailChance - validationStreakRelief)
+    );
+    if (assistTier >= 1) {
+      adjustedRandomFailChance = Math.min(adjustedRandomFailChance, 0.48);
+    }
+    if (assistTier >= 2) {
+      adjustedRandomFailChance = Math.min(adjustedRandomFailChance, 0.38);
+    }
 
     if (question.type === 'minigame') {
       const result = asMinigameResult(answer);
@@ -921,7 +1021,7 @@ function TourContent() {
       }
     }
 
-    if (!mercy && Math.random() < randomFailChance) {
+    if (!mercy && Math.random() < adjustedRandomFailChance) {
       setError(getRandomValidationMessage());
       return false;
     }
@@ -1035,6 +1135,7 @@ function TourContent() {
     (gameId: MinigameId, meta: Record<string, number>) => {
       if (!currentQuestion || currentQuestion.minigameId !== gameId) return;
       dispatch({ type: 'REGISTER_MINIGAME_PASS', gameId });
+      dispatch({ type: 'RESET_MINIGAME_FAIL_STREAK', gameId });
       setAnswers(prev => ({ ...prev, [currentQuestion.id]: { passed: true, meta } }));
       triggerSkinMutation('minigame-win', 'question-card', true);
       pushPulse('minigame', 0.62);
@@ -1050,6 +1151,8 @@ function TourContent() {
       minigameFailsThisStepRef.current += 1;
       const failCount = runState.interactionState.minigameStats[gameId].fails + 1;
       dispatch({ type: 'REGISTER_MINIGAME_FAIL', gameId });
+      dispatch({ type: 'INCREMENT_MINIGAME_FAIL_STREAK', gameId });
+      dispatch({ type: 'INCREMENT_STEP_FAIL_STREAK', step: runState.step });
       dispatch({ type: 'ADD_STRIKE' });
       dispatch({ type: 'SET_LOCKOUT', until: Date.now() + 850 + gameId.length * 35 });
       setAnswers(prev => ({ ...prev, [currentQuestion.id]: { passed: false } }));
@@ -1067,7 +1170,7 @@ function TourContent() {
         pushFeed('Captcha pity token granted for repeated failures.');
       }
     },
-    [currentQuestion, pushFeed, pushPulse, runState.interactionState.loadingBypassTokens, runState.interactionState.minigameStats, triggerSkinMutation]
+    [currentQuestion, pushFeed, pushPulse, runState.interactionState.loadingBypassTokens, runState.interactionState.minigameStats, runState.step, triggerSkinMutation]
   );
 
   const handleBack = useCallback(() => {
@@ -1201,13 +1304,14 @@ function TourContent() {
       now,
       lastEventAt: runState.lastEventAt,
       catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
-      baseChance: MAXIMUM_HOSTILITY.tour.beforeValidateChance,
+      baseChance: MAXIMUM_HOSTILITY.tour.beforeValidateChance * eventAssistMultiplier,
       rng: salt => seeded(salt, 1),
     });
     if (beforeValidateEvent && applyEvent(beforeValidateEvent, EFFECTIVE_PHASE, mercy, 1)) return;
 
     if (!validateStep(currentQuestion, mercy)) {
       validationFailedThisStepRef.current = true;
+      dispatch({ type: 'INCREMENT_STEP_FAIL_STREAK', step: runState.step });
       if (mercy && runState.recoveryTokens > 0) {
         dispatch({ type: 'CONSUME_RECOVERY' });
         pushFeed('Recovery token consumed after repeated failure.');
@@ -1220,7 +1324,7 @@ function TourContent() {
       now,
       lastEventAt: runState.lastEventAt,
       catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
-      baseChance: MAXIMUM_HOSTILITY.tour.afterValidateChance,
+      baseChance: MAXIMUM_HOSTILITY.tour.afterValidateChance * eventAssistMultiplier,
       rng: salt => seeded(salt, 2),
     });
     if (afterValidateEvent && applyEvent(afterValidateEvent, EFFECTIVE_PHASE, mercy, 2)) return;
@@ -1230,7 +1334,7 @@ function TourContent() {
       now: Date.now(),
       lastEventAt: runState.lastEventAt,
       catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
-      baseChance: MAXIMUM_HOSTILITY.tour.beforeTransitionChance,
+      baseChance: MAXIMUM_HOSTILITY.tour.beforeTransitionChance * eventAssistMultiplier,
       rng: salt => seeded(salt, 3),
     });
     if (beforeTransitionEvent && applyEvent(beforeTransitionEvent, EFFECTIVE_PHASE, mercy, 3)) return;
@@ -1245,6 +1349,10 @@ function TourContent() {
     }
 
     resolveChaosContract(currentQuestion, attemptCount);
+    dispatch({ type: 'RESET_STEP_FAIL_STREAK', step: runState.step });
+    if (currentQuestion.type === 'minigame' && currentQuestion.minigameId) {
+      dispatch({ type: 'RESET_MINIGAME_FAIL_STREAK', gameId: currentQuestion.minigameId });
+    }
 
     if (runState.step >= totalQuestions) {
       completeTour();
@@ -1327,7 +1435,7 @@ function TourContent() {
             <CursorCorruptionLayer
               phase={EFFECTIVE_PHASE}
               hostilityMode={HOSTILITY_MODE}
-              pityPass={pityPass}
+              pityPass={effectivePityForSabotage}
               active
               eventPulse={
                 runState.strikes +
@@ -1342,7 +1450,7 @@ function TourContent() {
             <TargetedCursorLayer
               phase={EFFECTIVE_PHASE}
               hostilityMode={HOSTILITY_MODE}
-              pityPass={pityPass}
+              pityPass={effectivePityForSabotage}
               active
               offsetBoost={runState.interactionState.cursorHotspotOffset}
               chanceBoost={runState.interactionState.cursorMode === 'trapped' ? 0.08 : 0}
@@ -1353,7 +1461,7 @@ function TourContent() {
               phase={EFFECTIVE_PHASE}
               hostilityMode={HOSTILITY_MODE}
               step={runState.step}
-              pityPass={pityPass}
+              pityPass={effectivePityForSabotage}
               armSignal={focusArmSignal}
               active
               onIncident={pushFeed}
@@ -1361,7 +1469,7 @@ function TourContent() {
             <ClipboardSaboteur
               phase={EFFECTIVE_PHASE}
               hostilityMode={HOSTILITY_MODE}
-              pityPass={pityPass}
+              pityPass={effectivePityForSabotage}
               active
               corruptionUntil={runState.interactionState.selectionCorruptUntil}
               onIncident={pushFeed}
@@ -1369,7 +1477,7 @@ function TourContent() {
             <DragFrictionField
               phase={EFFECTIVE_PHASE}
               hostilityMode={HOSTILITY_MODE}
-              pityPass={pityPass}
+              pityPass={effectivePityForSabotage}
               active
               resistanceBoost={Math.round(runState.interactionState.dragResistance * 10)}
               onIncident={pushFeed}
@@ -1479,6 +1587,10 @@ function TourContent() {
                     disclaimer={disclaimer}
                     gateOpen={nowTick % 7000 < 1800}
                     expectedPin={String((runState.step + runState.strikes + attemptsOnCurrentStep) % 10)}
+                    assistTier={assistTier}
+                    activeFailStreak={activeFailStreak}
+                    minigameStatus={minigameStatus}
+                    onMinigameStatus={handleMinigameStatus}
                   />
                 )}
 
@@ -1533,6 +1645,9 @@ function TourContent() {
                   <p className="text-[11px] mt-1" style={{ fontFamily: "'VT323', monospace" }}>Attempts on current step: {attemptsOnCurrentStep}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Pity pass: {pityPass ? 'ACTIVE' : `at ${PITY_PASS_TRIGGER} attempts`}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Recovery tokens: {runState.recoveryTokens}</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Persistence streak: {activeFailStreak} | Assist tier: {assistTier}</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Validation relief: -{validationStreakRelief.toFixed(2)} | Event scale: x{eventAssistMultiplier.toFixed(2)}</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Sabotage softening: {effectivePityForSabotage ? 'ON' : 'OFF'} | Hint ramp: {assistTier >= 2 ? 'tier-2' : assistTier >= 1 ? 'tier-1' : 'base'}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Chaos combo: x{runState.skillChaos.combo} (peak x{runState.skillChaos.peakCombo})</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Chaos score: {runState.skillChaos.chaosScore} | Tokens: {runState.skillChaos.chaosTokens}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Contracts: {runState.skillChaos.contractsCompleted}W / {runState.skillChaos.contractsFailed}L</p>
@@ -1596,6 +1711,10 @@ function QuestionCard({
   disclaimer,
   gateOpen,
   expectedPin,
+  assistTier,
+  activeFailStreak,
+  minigameStatus,
+  onMinigameStatus,
 }: {
   className?: string;
   question: TourQuestion;
@@ -1609,6 +1728,10 @@ function QuestionCard({
   disclaimer: string;
   gateOpen: boolean;
   expectedPin: string;
+  assistTier: AssistTier;
+  activeFailStreak: number;
+  minigameStatus: ActiveMinigameStatus | null;
+  onMinigameStatus: (gameId: MinigameId, status: MinigameStatusPayload) => void;
 }) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const styles = [
@@ -1630,10 +1753,38 @@ function QuestionCard({
         {renderQuestionContent(question, answer, onAnswer, gateOpen, expectedPin, {
           phase,
           attemptsOnStep,
+          assistTier,
           onMinigamePass,
           onMinigameFail,
+          onMinigameStatus,
         })}
       </div>
+
+      {question.type === 'minigame' && (
+        <div className="p-3 mb-4 bg-[#FFF8DC] border-2 border-dashed border-[#8B4513]" style={{ fontFamily: "'VT323', monospace" }}>
+          <p className="text-xs font-bold">MINIGAME STATUS</p>
+          <p className="text-[11px]">
+            Mode: {minigameStatus?.mode || 'running'} | Fails: {minigameStatus?.fails ?? 0} | Assist tier: {assistTier} (streak {activeFailStreak})
+          </p>
+          {(typeof minigameStatus?.selectedCount === 'number' || typeof minigameStatus?.cycle === 'number') && (
+            <p className="text-[11px]">
+              Queue progress: {minigameStatus?.selectedCount ?? 0}/4 selected | Cycle {minigameStatus?.cycle ?? 0}
+            </p>
+          )}
+          {typeof minigameStatus?.moves === 'number' && (
+            <p className="text-[11px]">
+              Maze progress: {minigameStatus.moves}/9 moves
+            </p>
+          )}
+          {(typeof minigameStatus?.round === 'number' || typeof minigameStatus?.timeLeft === 'number') && (
+            <p className="text-[11px]">
+              Captcha progress: Round {minigameStatus?.round ?? 1}/3 | Time {Math.max(0, minigameStatus?.timeLeft ?? 0)}s
+            </p>
+          )}
+          <p className="text-[11px]">Reset policy: progress persists through lockout/freeze/noise. Reset only on minigame fail or step change.</p>
+          <p className="text-[11px]">Last reset: {minigameStatus?.lastResetReason || 'None yet.'}</p>
+        </div>
+      )}
 
       {error && <div className="p-3 bg-[#FFE4E1] border-2 border-[#FF0000] text-[#FF0000] animate-shake" style={{ fontFamily: "'Comic Neue', cursive" }}>⚠️ {error}</div>}
 
@@ -1662,8 +1813,10 @@ function renderQuestionContent(
   minigameContext: {
     phase: 1 | 2 | 3;
     attemptsOnStep: number;
+    assistTier: AssistTier;
     onMinigamePass: (gameId: MinigameId, meta: Record<string, number>) => void;
     onMinigameFail: (gameId: MinigameId) => void;
+    onMinigameStatus: (gameId: MinigameId, status: MinigameStatusPayload) => void;
   }
 ) {
   if (question.type === 'minigame' && question.minigameId) {
@@ -1672,8 +1825,10 @@ function renderQuestionContent(
       return (
         <BureaucracyQueue
           attemptCount={minigameContext.attemptsOnStep}
+          assistTier={minigameContext.assistTier}
           onPass={meta => minigameContext.onMinigamePass(gameId, meta)}
           onFail={() => minigameContext.onMinigameFail(gameId)}
+          onStatus={status => minigameContext.onMinigameStatus(gameId, status)}
         />
       );
     }
@@ -1682,8 +1837,10 @@ function renderQuestionContent(
         <MazeOfConsent
           phase={minigameContext.phase}
           attemptCount={minigameContext.attemptsOnStep}
+          assistTier={minigameContext.assistTier}
           onPass={meta => minigameContext.onMinigamePass(gameId, meta)}
           onFail={() => minigameContext.onMinigameFail(gameId)}
+          onStatus={status => minigameContext.onMinigameStatus(gameId, status)}
         />
       );
     }
@@ -1691,8 +1848,10 @@ function renderQuestionContent(
       <CaptchaGauntlet
         phase={minigameContext.phase}
         attemptCount={minigameContext.attemptsOnStep}
+        assistTier={minigameContext.assistTier}
         onPass={meta => minigameContext.onMinigamePass(gameId, meta)}
         onFail={() => minigameContext.onMinigameFail(gameId)}
+        onStatus={status => minigameContext.onMinigameStatus(gameId, status)}
       />
     );
   }

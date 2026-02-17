@@ -1,6 +1,12 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import {
+  AUDIO_SCENE_LOCK_EVENT,
+  AUDIO_SCENE_RELEASE_EVENT,
+  type AudioSceneLockDetail,
+  type AudioSceneReleaseDetail,
+} from '@/lib/audioSceneBus';
 
 type AudioNodes = {
   ctx: AudioContext;
@@ -205,6 +211,7 @@ export function AnnoyingSoundscape() {
     let disposed = false;
     let started = false;
     let startPath: SoundscapeStartPath = 'none';
+    let sceneSuppressed = false;
     let resumeAttempts = 0;
     let lastResumeAttemptAt: number | null = null;
     let gatePollId: number | null = null;
@@ -212,6 +219,8 @@ export function AnnoyingSoundscape() {
     let gateReleaseHandler: (() => void) | null = null;
     let musicStartedHandler: (() => void) | null = null;
     let entryConfirmedHandler: (() => void) | null = null;
+    let audioSceneLockHandler: ((event: Event) => void) | null = null;
+    let audioSceneReleaseHandler: ((event: Event) => void) | null = null;
     let lastWakeSoundAt = 0;
     let entryConfirmed = window.__mobdEntryConfirmed === true;
 
@@ -262,7 +271,7 @@ export function AnnoyingSoundscape() {
     };
 
     const playRandom = () => {
-      if (disposed || document.hidden) return;
+      if (disposed || document.hidden || sceneSuppressed) return;
       const nodes = ensureNodes();
       if (nodes.ctx.state !== 'running') return;
       nodes.master.gain.value = 0.08 + Math.random() * 0.07;
@@ -336,6 +345,7 @@ export function AnnoyingSoundscape() {
         if (!entryConfirmed) return;
         return;
       }
+      if (sceneSuppressed) return;
       const now = Date.now();
       if (now - lastWakeSoundAt < WAKE_SOUND_COOLDOWN_MS) return;
       lastWakeSoundAt = now;
@@ -385,6 +395,28 @@ export function AnnoyingSoundscape() {
     };
     window.addEventListener(MUSIC_STARTED_EVENT, musicStartedHandler);
 
+    audioSceneLockHandler = (event: Event) => {
+      const detail = (event as CustomEvent<AudioSceneLockDetail>).detail;
+      if (!detail || detail.scene !== 'certificate') return;
+      sceneSuppressed = true;
+      if (nodesRef.current) {
+        nodesRef.current.master.gain.value = 0;
+      }
+      syncSoundscapeDebug();
+    };
+    window.addEventListener(AUDIO_SCENE_LOCK_EVENT, audioSceneLockHandler);
+
+    audioSceneReleaseHandler = (event: Event) => {
+      const detail = (event as CustomEvent<AudioSceneReleaseDetail>).detail;
+      if (!detail || detail.scene !== 'certificate') return;
+      sceneSuppressed = false;
+      if (started) {
+        playRandom();
+      }
+      syncSoundscapeDebug();
+    };
+    window.addEventListener(AUDIO_SCENE_RELEASE_EVENT, audioSceneReleaseHandler);
+
     window.addEventListener('pointerdown', wake, { passive: true, capture: true });
     window.addEventListener('touchstart', wake, { passive: true, capture: true });
     window.addEventListener('keydown', wake, { capture: true });
@@ -408,6 +440,12 @@ export function AnnoyingSoundscape() {
       }
       if (entryConfirmedHandler) {
         window.removeEventListener(ENTRY_CONFIRMED_EVENT, entryConfirmedHandler);
+      }
+      if (audioSceneLockHandler) {
+        window.removeEventListener(AUDIO_SCENE_LOCK_EVENT, audioSceneLockHandler);
+      }
+      if (audioSceneReleaseHandler) {
+        window.removeEventListener(AUDIO_SCENE_RELEASE_EVENT, audioSceneReleaseHandler);
       }
       window.removeEventListener('pointerdown', wake, true);
       window.removeEventListener('touchstart', wake, true);

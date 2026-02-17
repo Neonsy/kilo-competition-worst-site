@@ -18,6 +18,7 @@ import { Badge } from '@/data/badges';
 import { Exhibit } from '@/data/exhibits';
 import { MAXIMUM_HOSTILITY } from '@/data/maximumHostility';
 import { HOSTILITY_MODE } from '@/data/hostilityPrimitives';
+import { dispatchAudioSceneLock, dispatchAudioSceneRelease } from '@/lib/audioSceneBus';
 import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
 import { useMaximumHeartbeatPulse } from '@/lib/useMaximumHeartbeatPulse';
 
@@ -96,33 +97,60 @@ export default function CertificatePage() {
   const resonanceSafeZones = [{ x: 16, y: 20, w: 68, h: 58 }];
 
   useEffect(() => {
-    // Load results from sessionStorage
     const storedResults = sessionStorage.getItem('tourResults');
-    
-    if (storedResults) {
-      try {
-        const parsed = JSON.parse(storedResults) as TourResults;
-        setResults(parsed);
-        
-        // Load exhibits
-        import('@/data/exhibits').then(({ getExhibitById }) => {
+    if (!storedResults) {
+      router.replace('/tour');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(storedResults) as TourResults;
+      if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.exhibitIds)) {
+        throw new Error('Invalid tour results payload');
+      }
+
+      setResults(parsed);
+      void import('@/data/exhibits')
+        .then(({ getExhibitById }) => {
           const loadedExhibits = parsed.exhibitIds
             .map(id => getExhibitById(id))
             .filter((e): e is Exhibit => e !== undefined);
           setExhibits(loadedExhibits);
           setLoading(false);
+        })
+        .catch(() => {
+          router.replace('/tour');
+          setLoading(false);
         });
-      } catch {
-        setLoading(false);
-      }
-    } else {
+    } catch {
+      router.replace('/tour');
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (!results?.runStats) return;
     setPulseState(prev => emitPulse(prev, 'event', 0.34));
+  }, [results]);
+
+  useEffect(() => {
+    if (!results) return;
+
+    dispatchAudioSceneLock({ scene: 'certificate' });
+
+    const victory = new Audio('/audio/victory/victory.mp3');
+    victory.preload = 'auto';
+    victory.loop = false;
+    void victory.play().catch(() => {
+      // Keep certificate scene silent if autoplay is blocked.
+    });
+
+    return () => {
+      victory.pause();
+      victory.currentTime = 0;
+      dispatchAudioSceneRelease({ scene: 'certificate', resumeQueueFromNext: true });
+    };
   }, [results]);
 
   useMaximumHeartbeatPulse({
@@ -150,47 +178,7 @@ export default function CertificatePage() {
     );
   }
 
-  if (!results) {
-    return (
-      <PopupManager>
-        <div className="min-h-screen flex flex-col">
-          <TopNav />
-          <div className="flex flex-1">
-            <SideNav />
-            <main className="flex-1 overflow-x-hidden">
-              <div className="min-h-[80vh] flex items-center justify-center p-4">
-                <div 
-                  className="max-w-lg w-full p-8 bg-[#FFFF99] border-4 border-dashed border-[#FF0000] text-center"
-                  style={{ fontFamily: "'Comic Neue', cursive" }}
-                >
-                  <span className="text-6xl">❓</span>
-                  <h1 
-                    className="text-2xl mt-4"
-                    style={{ fontFamily: "'Bangers', cursive" }}
-                  >
-                    NO CERTIFICATE FOUND
-                  </h1>
-                  <p className="mt-4">
-                    It appears you haven't completed the tour yet. 
-                    Your certificate is waiting for you to make some bad decisions first.
-                  </p>
-                  <button
-                    onClick={() => router.push('/tour')}
-                    className="mt-6 px-6 py-3 bg-[#FF69B4] text-white font-bold"
-                    style={{ fontFamily: "'Bangers', cursive" }}
-                  >
-                    START THE TOUR
-                  </button>
-                </div>
-              </div>
-            </main>
-          </div>
-          <FooterNav />
-          <FloatingWidget />
-        </div>
-      </PopupManager>
-    );
-  }
+  if (!results) return null;
 
   // Get name from answers
   const name = (results.answers['useless-data'] as string) || 'Anonymous Regretter';

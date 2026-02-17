@@ -220,6 +220,19 @@ A deliberately awful website that masquerades as an interactive museum of terrib
   - Removed `gate rev: v7` text from both `GlobalGlitchGate` primary and failsafe cards
   - Switched desktop corruption policy to hide native cursor whenever `cursor-corruption-active` is present (non-reduced-motion only)
   - Raised cursor corruption layer priority and changed pointer sprite compositing to `mix-blend-mode: normal` so custom pointers remain visually dominant over effect noise
+- [x] Certificate victory audio scene override pass:
+  - Added shared scene bus contract in `src/lib/audioSceneBus.ts` with `mobd:audio-scene-lock` and `mobd:audio-scene-release` events
+  - Updated `VisitMusicQueue` to pause immediately during certificate lock, suppress queue auto-advance while locked, and resume from the next queued track on release
+  - Updated `AnnoyingSoundscape` to hard-suppress output while certificate lock is active and resume normal cadence after release
+  - Updated `src/app/certificate/page.tsx` to enforce direct-access guard (`router.replace('/tour')` when `tourResults` is missing/invalid) and play `public/audio/victory/victory.mp3` once per valid visit
+- [x] Tour persistence-assist + minigame reliability rebalance:
+  - Added adaptive fail-streak tracking in `src/app/tour/page.tsx` (`stepFailStreak`, `minigameFailStreak`) and derived assist tiers (`0|1|2`)
+  - Added persistence-based difficulty scaling: reduced random validation fail pressure, moderated non-idle event trigger pressure, and sabotage softening during minigame struggle
+  - Added explicit minigame status strip and persistence-assist telemetry in the tour UI
+  - Extended minigame component contracts (`assistTier`, `onStatus`) for live run/reset reporting
+  - Fixed Maze path solvability in phase 3 by excluding decoy-dependent routes
+  - Fixed Captcha timeout reset loop by forcing timer reset on timeout and added adaptive timer extension hints
+  - Improved Bureaucracy Queue clarity (rule-mode copy/status/reset reason) and added tier-2 first-slot lock assistance after failed submit
 
 ## Current Structure
 
@@ -307,3 +320,5 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | 2026-02-17 | Implemented cursor visibility chaos + tour skill-chaos expansion: native cursor now mostly visible with brief hide bursts, 3s blur trailers/smears/flashes, global ambient smear+warning overlay layers, and tour Chaos Contracts with combo/score/tokens plus certificate metrics |
 | 2026-02-17 | Implemented real-pointer cursor trail pass: pointer-sprite trail/ghost rendering, live desync decoy pointer, trap-zone click-offset interventions, periodic critical-control cursor remaps, and optional persisted cursor chaos counters in tour/certificate diagnostics |
 | 2026-02-17 | Removed gate revision copy from loader cards and enforced desktop non-reduced-motion native-cursor hiding under active corruption, with higher-priority normal-blend custom pointer rendering for stronger cursor confusion |
+| 2026-02-17 | Implemented certificate audio scene override: `victory.mp3` plays on each valid certificate visit, certificate view suppresses queue+soundscape to silence after track end, queue resumes from next track on route exit, and invalid certificate access now auto-redirects to `/tour` |
+| 2026-02-17 | Implemented adaptive persistence assist and minigame reliability rebalance: fail-streak-driven assist tiers, clearer minigame run/reset status, solvable phase-3 maze routing, captcha timeout reset fix + timer assist, and queue/maze/captcha progressive hint ramps |
