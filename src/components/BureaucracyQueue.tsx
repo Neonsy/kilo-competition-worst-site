@@ -9,6 +9,7 @@ interface BureaucracyQueueStatus {
   selectedCount: number;
   cycle: number;
   fails: number;
+  ruleMode: 'A' | 'B';
   lastResetReason?: string;
 }
 
@@ -55,9 +56,10 @@ export function BureaucracyQueue({ attemptCount, assistTier, onPass, onFail, onS
       selectedCount: picked.length,
       cycle: cycles,
       fails,
+      ruleMode,
       lastResetReason: lastResetReason || undefined,
     });
-  }, [cycles, fails, lastResetReason, mode, onStatus, picked.length]);
+  }, [cycles, fails, lastResetReason, mode, onStatus, picked.length, ruleMode]);
 
   const togglePick = (doc: string) => {
     setMode('building');
@@ -86,12 +88,15 @@ export function BureaucracyQueue({ attemptCount, assistTier, onPass, onFail, onS
       return;
     }
     setMode('failed');
-    setLastResetReason('Incorrect queue order submitted.');
+    const nextFails = fails + 1;
+    const nextOrder = expectedOrder(attemptCount + nextFails);
+    const nextRuleMode = (attemptCount + nextFails) % 2 === 0 ? 'A' : 'B';
+    setLastResetReason(`Incorrect queue order submitted. Rule mode switched to ${nextRuleMode}.`);
     setFails(prev => prev + 1);
     if (assistTier >= 2) {
-      setLockedPrefix(1);
-      setPicked([order[0]]);
-      setLastResetReason('Queue reset after fail. Slot #1 stayed locked as persistence assist.');
+      setLockedPrefix(2);
+      setPicked(nextOrder.slice(0, 2));
+      setLastResetReason(`Queue reset after fail. Slots #1-#2 locked for rule mode ${nextRuleMode}.`);
     } else {
       setLockedPrefix(0);
       setPicked([]);
@@ -103,6 +108,8 @@ export function BureaucracyQueue({ attemptCount, assistTier, onPass, onFail, onS
     <div className="minigame-shell">
       <p className="minigame-title">Bureaucracy Queue</p>
       <p className="minigame-subtitle">Pick 4 documents in the correct order. Rule mode flips by attempt/fail parity.</p>
+      <p className="minigame-hint">How to pass: select 4 docs, then submit once your queue matches the current rule mode order.</p>
+      <p className="minigame-hint">Mode policy: A starts with Form A-17. B starts with Blue Carbon Copy.</p>
       <div className="minigame-grid">
         {docs.map(doc => (
           <button
@@ -119,8 +126,14 @@ export function BureaucracyQueue({ attemptCount, assistTier, onPass, onFail, onS
       <p className="minigame-hint">Selected: {picked.length}/4 | Cycle: {cycles} | Rule mode: {ruleMode}</p>
       <p className="minigame-hint">Last reset: {lastResetReason || 'No reset yet.'}</p>
       {showForcedHint && <p className="minigame-hint">Forced hint: first document is "{order[0]}".</p>}
-      {assistTier >= 2 && <p className="minigame-hint">Tier-2 assist: first slot stays locked after failed submit.</p>}
-      <button type="button" onClick={submit} className="minigame-submit">
+      {assistTier >= 1 && <p className="minigame-hint">Tier-1 exact order: {order.join(' -> ')}</p>}
+      {assistTier >= 2 && (
+        <>
+          <p className="minigame-hint">Tier-2 assist: first two slots stay locked after failed submit.</p>
+          <p className="minigame-hint">Remaining unsolved slots: {picked.length >= 2 ? '#3 and #4' : '#1 to #4'}</p>
+        </>
+      )}
+      <button type="button" onClick={submit} className="minigame-submit" disabled={picked.length !== 4}>
         Submit Queue
       </button>
     </div>

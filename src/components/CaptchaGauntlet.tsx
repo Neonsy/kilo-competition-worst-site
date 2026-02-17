@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type AssistTier = 0 | 1 | 2;
 
@@ -73,24 +73,34 @@ export function CaptchaGauntlet({ phase, attemptCount, assistTier, onPass, onFai
   const [fails, setFails] = useState(0);
   const [mode, setMode] = useState<CaptchaStatus['mode']>('running');
   const [lastResetReason, setLastResetReason] = useState<string | null>(null);
+  const [highlightCorrect, setHighlightCorrect] = useState(false);
   const timerBudget = useMemo(() => getBaseTimer(phase) + getTimerBonus(assistTier), [assistTier, phase]);
   const [timer, setTimer] = useState(timerBudget);
+  const isPassed = mode === 'passed';
+  const passedRef = useRef(false);
 
   const currentRound = useMemo(() => rounds[roundIndex] || rounds[0], [roundIndex]);
   const misleadingCopy = roundIndex === 1 && (attemptCount + fails) % 2 === 1;
 
   useEffect(() => {
-    setTimer(timerBudget);
-  }, [roundIndex, timerBudget]);
+    passedRef.current = isPassed;
+  }, [isPassed]);
 
   useEffect(() => {
+    if (isPassed) return;
+    setTimer(timerBudget);
+  }, [isPassed, roundIndex, timerBudget]);
+
+  useEffect(() => {
+    if (isPassed) return;
     const id = window.setInterval(() => {
-      setTimer(prev => prev - 1);
+      setTimer(prev => (passedRef.current ? prev : prev - 1));
     }, 1000);
     return () => window.clearInterval(id);
-  }, [roundIndex, timerBudget]);
+  }, [isPassed, roundIndex, timerBudget]);
 
   useEffect(() => {
+    if (isPassed || passedRef.current) return;
     if (timer > 0) return;
     setMode('failed');
     setLastResetReason('Timeout reached. Round sequence reset to 1.');
@@ -99,7 +109,7 @@ export function CaptchaGauntlet({ phase, attemptCount, assistTier, onPass, onFai
     setSelection('');
     setTimer(timerBudget);
     onFail();
-  }, [onFail, timer, timerBudget]);
+  }, [isPassed, onFail, timer, timerBudget]);
 
   useEffect(() => {
     onStatus?.({
@@ -111,7 +121,22 @@ export function CaptchaGauntlet({ phase, attemptCount, assistTier, onPass, onFai
     });
   }, [fails, lastResetReason, mode, onStatus, roundIndex, timer]);
 
+  useEffect(() => {
+    if (isPassed) {
+      setHighlightCorrect(false);
+      return;
+    }
+    if (assistTier < 2) {
+      setHighlightCorrect(false);
+      return;
+    }
+    setHighlightCorrect(false);
+    const timerId = window.setTimeout(() => setHighlightCorrect(true), 1500);
+    return () => window.clearTimeout(timerId);
+  }, [assistTier, fails, isPassed, roundIndex]);
+
   const submit = () => {
+    if (isPassed || passedRef.current) return;
     setMode('running');
     if (selection !== currentRound.correct) {
       setMode('failed');
@@ -126,8 +151,10 @@ export function CaptchaGauntlet({ phase, attemptCount, assistTier, onPass, onFai
 
     const next = roundIndex + 1;
     if (next >= rounds.length) {
+      passedRef.current = true;
       setMode('passed');
       setLastResetReason(null);
+      setTimer(prev => Math.max(0, prev));
       onPass({ rounds: rounds.length, fails });
       return;
     }
@@ -140,6 +167,7 @@ export function CaptchaGauntlet({ phase, attemptCount, assistTier, onPass, onFai
     <div className="minigame-shell">
       <p className="minigame-title">Captcha Gauntlet</p>
       <p className="minigame-subtitle">Pass 3 contradictory rounds in one run. Timer tightens with phase.</p>
+      <p className="minigame-hint">How to pass: solve rounds 1 to 3 in order before timeout; any fail resets to round 1.</p>
       <p className="minigame-hint">Round {roundIndex + 1}/3 | Time left: {Math.max(0, timer)}s | Failures: {fails}</p>
       <p className="minigame-hint">Run policy: progress persists through lockout/freeze/noise. Reset only on fail or step change.</p>
       <p className="minigame-hint">Last reset: {lastResetReason || 'No reset yet.'}</p>
@@ -150,16 +178,18 @@ export function CaptchaGauntlet({ phase, attemptCount, assistTier, onPass, onFai
             key={option}
             type="button"
             onClick={() => setSelection(option)}
-            className={`minigame-card ${selection === option ? 'active' : ''}`}
+            className={`minigame-card ${selection === option ? 'active' : ''} ${assistTier >= 2 && highlightCorrect && option === currentRound.correct ? 'assist-option-target' : ''}`}
           >
             {option}
           </button>
         ))}
       </div>
       {misleadingCopy && <p className="minigame-hint text-[#FF0000]">Validation says your answer is wrong even when it is right. Submit anyway.</p>}
-      {assistTier >= 1 && <p className="minigame-hint">Assist hint: {getSemanticHint(roundIndex)}</p>}
-      {assistTier >= 2 && <p className="minigame-hint">Assist hint+: {getDirectHint(roundIndex)}</p>}
-      <button type="button" onClick={submit} className="minigame-submit">
+      <p className="minigame-hint">Clue: {getSemanticHint(roundIndex)}</p>
+      {assistTier >= 1 && <p className="minigame-hint">Assist hint: {getDirectHint(roundIndex)}</p>}
+      {assistTier >= 2 && <p className="minigame-hint">Tier-2 assist: correct option is highlighted shortly after round start.</p>}
+      {isPassed && <p className="minigame-hint">Run complete. Press Next (Labyrinth).</p>}
+      <button type="button" onClick={submit} className="minigame-submit" disabled={isPassed}>
         Submit Round
       </button>
     </div>

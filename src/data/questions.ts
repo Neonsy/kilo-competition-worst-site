@@ -1,4 +1,5 @@
 import { MinigameId } from '@/data/minigames';
+import { MEMORY_SOUND_CODES, type MemorySoundCode } from '@/data/memorySoundCodes';
 
 export interface QuestionOption {
   id: string;
@@ -53,6 +54,29 @@ export interface TourQuestion {
 
 const allSkinPools = ['retro-os', 'corporate-gray', 'festival-neon', 'terminal-crash', 'print-flyer', 'medical-form', 'infomercial', 'broken-admin'];
 
+const memorySoundLabels: Record<MemorySoundCode, string> = {
+  nails: 'Nails on chalkboard',
+  alarm: '3AM alarm clock',
+  chew: 'Loud chewing',
+  baby: 'Crying baby on plane',
+  dialup: 'Dial-up modem',
+};
+
+const memorySoundMultipliers: Record<MemorySoundCode, number> = {
+  nails: 1.4,
+  alarm: 1.2,
+  chew: 1.3,
+  baby: 1.5,
+  dialup: 1.1,
+};
+
+const hatedSoundOptions: QuestionOption[] = MEMORY_SOUND_CODES.map(code => ({
+  id: `sound-${code}`,
+  label: memorySoundLabels[code],
+  value: code,
+  regretMultiplier: memorySoundMultipliers[code],
+}));
+
 export const tourQuestions: TourQuestion[] = [
   {
     id: 'door-choice',
@@ -102,13 +126,7 @@ export const tourQuestions: TourQuestion[] = [
     title: 'Select a Sound You Hate',
     subtitle: 'Remember your answer. It will return.',
     type: 'sound',
-    options: [
-      { id: 'sound-nails', label: 'Nails on chalkboard', value: 'nails', regretMultiplier: 1.4 },
-      { id: 'sound-alarm', label: '3AM alarm clock', value: 'alarm', regretMultiplier: 1.2 },
-      { id: 'sound-chew', label: 'Loud chewing', value: 'chew', regretMultiplier: 1.3 },
-      { id: 'sound-baby', label: 'Crying baby on plane', value: 'baby', regretMultiplier: 1.5 },
-      { id: 'sound-dialup', label: 'Dial-up modem', value: 'dialup', regretMultiplier: 1.1 },
-    ],
+    options: hatedSoundOptions,
     penaltyHooks: ['instability'],
     eventHooks: ['before-transition'],
     moduleSkinPool: allSkinPools,
@@ -176,15 +194,15 @@ export const tourQuestions: TourQuestion[] = [
     phase: 2,
     difficultyWeight: 1.45,
     title: 'Memory Trap',
-    subtitle: 'Type the exact sound code from Step 3.',
+    subtitle: 'Select the exact sound code from Step 3.',
     type: 'memory',
-    placeholder: 'nails / alarm / chew / baby / dialup',
+    placeholder: 'Select exact code from Step 3',
     validation: { required: true, minLength: 3, maxLength: 20 },
     penaltyHooks: ['regress', 'suspicion'],
     eventHooks: ['before-validate'],
     moduleSkinPool: allSkinPools,
     mutationHooks: ['input', 'fail'],
-    helpText: 'Exact text only.',
+    helpText: 'Exact match only. Select the same code from Step 3.',
   },
   {
     id: 'color-wrong',
@@ -407,4 +425,3 @@ export function getQuestionByNumber(num: number): TourQuestion | undefined {
 }
 
 export const totalQuestions = tourQuestions.length;
-

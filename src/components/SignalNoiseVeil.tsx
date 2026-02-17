@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useEffect, useState, useRef } from "react";
+import React, { useMemo, useEffect, useState, useRef, useId } from "react";
 import type { HostilityMode } from "@/data/hostilityPrimitives";
 
 /**
@@ -76,7 +76,7 @@ export default function SignalNoiseVeil({
   noise = true,
   pulseKey = 0,
   eventPulse = false,
-  safeZones: _safeZones,
+  safeZones = [],
   coverage: _coverage,
   hostilityMode = 'legacy',
   className = "",
@@ -85,6 +85,8 @@ export default function SignalNoiseVeil({
   const [flickerActive, setFlickerActive] = useState(false);
   const [pulseBoostUntil, setPulseBoostUntil] = useState(0);
   const prevEventPulse = useRef(eventPulse);
+  const id = useId();
+  const maskId = `noise-mask-${id.replace(/[:]/g, '')}`;
 
   // Regenerate on severity changes
   useEffect(() => {
@@ -117,25 +119,61 @@ export default function SignalNoiseVeil({
 
   const intensityClass = getIntensityClass(effectiveSeverity);
   const boosted = Date.now() < pulseBoostUntil;
+  const baseNoiseOpacity = 0.05 + effectiveSeverity * 0.11;
+  const boostedNoiseOpacity = Math.min(0.34, 0.1 + effectiveSeverity * 0.22);
   const flickerStyle = flickerActive
     ? { opacity: Math.min(0.5, effectiveSeverity * 0.5) }
     : {};
+  const clampedSafeZones = useMemo(
+    () =>
+      safeZones.map(zone => ({
+        x: Math.max(0, Math.min(100, zone.x)) / 100,
+        y: Math.max(0, Math.min(100, zone.y)) / 100,
+        w: Math.max(0, Math.min(100, zone.w)) / 100,
+        h: Math.max(0, Math.min(100, zone.h)) / 100,
+      })),
+    [safeZones]
+  );
+  const maskStyle =
+    clampedSafeZones.length > 0
+      ? {
+          WebkitMask: `url(#${maskId})`,
+          mask: `url(#${maskId})`,
+          WebkitMaskRepeat: "no-repeat",
+          maskRepeat: "no-repeat",
+          WebkitMaskSize: "100% 100%",
+          maskSize: "100% 100%",
+        }
+      : undefined;
 
   return (
     <div
       className={`res-noise-veil res-decorative ${intensityClass} ${className}`}
-      style={flickerStyle}
+      style={{ ...flickerStyle, ...maskStyle }}
       aria-hidden="true"
       data-resonance-layer="noise"
       data-severity={effectiveSeverity.toFixed(2)}
     >
+      {clampedSafeZones.length > 0 && (
+        <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true" focusable="false">
+          <defs>
+            <mask id={maskId} x="0" y="0" width="1" height="1" maskUnits="objectBoundingBox" maskContentUnits="objectBoundingBox">
+              <rect x="0" y="0" width="1" height="1" fill="white" />
+              {clampedSafeZones.map((zone, index) => (
+                <rect key={`${maskId}-${index}`} x={zone.x} y={zone.y} width={zone.w} height={zone.h} fill="black" />
+              ))}
+            </mask>
+          </defs>
+        </svg>
+      )}
+
       {/* Noise texture overlay */}
       {noise && (
         <div
           style={{
             position: "absolute",
             inset: 0,
-            opacity: boosted ? Math.min(0.48, 0.14 + effectiveSeverity * 0.32) : 0.08 + effectiveSeverity * 0.16,
+            opacity: boosted ? boostedNoiseOpacity : baseNoiseOpacity,
             backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='${0.6 + effectiveSeverity * 0.3}' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
             backgroundRepeat: "repeat",
             mixBlendMode: "overlay",

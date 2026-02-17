@@ -34,6 +34,7 @@ import { MinigameId } from '@/data/minigames';
 import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutationRule, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
 import { HOSTILITY_MODE } from '@/data/hostilityPrimitives';
 import { MAXIMUM_HOSTILITY } from '@/data/maximumHostility';
+import { MEMORY_SOUND_CODES, type MemorySoundCode, normalizeMemorySoundCode } from '@/data/memorySoundCodes';
 import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
 import { useMaximumHeartbeatPulse } from '@/lib/useMaximumHeartbeatPulse';
 
@@ -69,6 +70,7 @@ interface MinigameStatusPayload {
   fails: number;
   selectedCount?: number;
   cycle?: number;
+  ruleMode?: 'A' | 'B';
   moves?: number;
   round?: number;
   timeLeft?: number;
@@ -197,6 +199,25 @@ function getAssistTierFromStreak(streak: number): AssistTier {
   if (streak >= 5) return 2;
   if (streak >= 3) return 1;
   return 0;
+}
+
+function getMinigameAssistTierFromStreak(streak: number): AssistTier {
+  if (streak >= 4) return 2;
+  if (streak >= 2) return 1;
+  return 0;
+}
+
+function stableHash(input: string): number {
+  let hash = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash * 31 + input.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function stableRotation(seed: string, maxAbsDeg: number): number {
+  const unit = (stableHash(seed) % 2001) / 1000 - 1;
+  return parseFloat((unit * maxAbsDeg).toFixed(2));
 }
 
 function createChaosContract(step: number, question: TourQuestion | undefined, roll: number): ChaosContract {
@@ -694,6 +715,7 @@ function TourContent() {
   const searchParams = useSearchParams();
   const [runState, dispatch] = useReducer(tourReducer, undefined, createInitialRunState);
   const [answers, setAnswers] = useState<TourAnswers>({});
+  const [memoryAnchor, setMemoryAnchor] = useState<MemorySoundCode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [backClicks, setBackClicks] = useState(0);
   const [started, setStarted] = useState(false);
@@ -728,6 +750,8 @@ function TourContent() {
   const currentMinigameFailStreak = currentMinigameId ? runState.minigameFailStreak[currentMinigameId] || 0 : 0;
   const activeFailStreak = Math.max(currentStepFailStreak, currentMinigameFailStreak);
   const assistTier = getAssistTierFromStreak(activeFailStreak);
+  const minigameAssistTier =
+    currentQuestion?.type === 'minigame' ? getMinigameAssistTierFromStreak(currentMinigameFailStreak) : 0;
   const effectivePityForSabotage = pityPass || (currentQuestion?.type === 'minigame' && assistTier >= 1);
   const eventAssistMultiplier = assistTier >= 2 ? 0.68 : assistTier >= 1 ? 0.82 : 1;
   const validationStreakRelief = Math.min(0.24, currentStepFailStreak * 0.05);
@@ -742,8 +766,8 @@ function TourContent() {
   const cursorPresentation = MAXIMUM_HOSTILITY.primitives.cursorPresentation;
   const resonanceSafeZones = useMemo(
     () => [
-      { x: 14, y: 24, w: 72, h: 45 },
-      { x: 24, y: 66, w: 52, h: 16 },
+      { x: 6, y: 18, w: 66, h: 52 },
+      { x: 6, y: 62, w: 66, h: 30 },
     ],
     []
   );
@@ -769,6 +793,13 @@ function TourContent() {
     }, 1300);
     return () => window.clearInterval(timer);
   }, [runState.skillChaos.combo, started]);
+
+  useEffect(() => {
+    if (currentQuestion?.id !== 'timelock-confirm') return;
+    const current = answers[currentQuestion.id];
+    if (typeof current === 'string' && current.trim().length > 0) return;
+    setAnswers(prev => ({ ...prev, [currentQuestion.id]: 'proceed' }));
+  }, [answers, currentQuestion]);
 
   useEffect(() => {
     if (!contractFeedback) return;
@@ -890,6 +921,7 @@ function TourContent() {
     const seed = Math.floor(Math.random() * 999999);
     setStarted(true);
     setAnswers({});
+    setMemoryAnchor(null);
     setError(null);
     setContractFeedback(null);
     setPulseState(initialResonancePulseState);
@@ -986,10 +1018,19 @@ function TourContent() {
 
   const handleAnswer = (questionId: string, value: TourAnswerValue) => {
     let nextValue = value;
-    if (runState.debuffs.inputCorruption && typeof value === 'string' && value.length > 0 && Math.random() > 0.35) {
-      nextValue = scrambleText(value);
-      pushFeed('Input corruption altered your latest value.');
-      dispatch({ type: 'CLEAR_INPUT_CORRUPTION' });
+    if (runState.debuffs.inputCorruption && typeof value === 'string' && value.length > 0) {
+      const isMemoryCritical = questionId === 'hated-sound' || questionId === 'memory-trap';
+      if (isMemoryCritical) {
+        pushFeed('Input corruption tried to poison memory-critical data and was neutralized.');
+        dispatch({ type: 'CLEAR_INPUT_CORRUPTION' });
+      } else if (Math.random() > 0.35) {
+        nextValue = scrambleText(value);
+        pushFeed('Input corruption altered your latest value.');
+        dispatch({ type: 'CLEAR_INPUT_CORRUPTION' });
+      }
+    }
+    if (questionId === 'hated-sound') {
+      setMemoryAnchor(normalizeMemorySoundCode(nextValue));
     }
     setAnswers(prev => ({ ...prev, [questionId]: nextValue }));
     triggerSkinMutation('input');
@@ -1021,6 +1062,20 @@ function TourContent() {
       }
     }
 
+    if (question.id === 'timelock-confirm') {
+      if (typeof answer !== 'string' || answer.trim() === '') {
+        setError('Pick any time-lock action first (Proceed now, Wait, or Spam).');
+        return false;
+      }
+      const gateIsOpen = nowTick % 7000 < 1800;
+      if (!gateIsOpen) {
+        dispatch({ type: 'SET_LOCKOUT', until: Date.now() + 1400 });
+        setError('Time-lock gate is CLOSED. Wait for OPEN status.');
+        return false;
+      }
+      return true;
+    }
+
     if (!mercy && Math.random() < adjustedRandomFailChance) {
       setError(getRandomValidationMessage());
       return false;
@@ -1040,9 +1095,15 @@ function TourContent() {
     }
 
     if (question.id === 'memory-trap') {
-      const expected = String(answers['hated-sound'] || '').trim().toLowerCase();
-      const given = String(answer || '').trim().toLowerCase();
-      if (!expected || given !== expected) {
+      const expected = memoryAnchor ?? normalizeMemorySoundCode(answers['hated-sound']);
+      const given = normalizeMemorySoundCode(answer);
+      if (!expected && given) {
+        setMemoryAnchor(given);
+        setAnswers(prev => ({ ...prev, 'hated-sound': given }));
+        pushFeed('Memory baseline auto-recovered to canonical code.');
+        return true;
+      }
+      if (!expected || !given || given !== expected) {
         setError('Memory mismatch. Re-enter the exact sound code from Step 3.');
         return false;
       }
@@ -1051,15 +1112,6 @@ function TourContent() {
     if (question.id === 'useless-data' && typeof answer === 'string') {
       if (answer.toLowerCase().includes('john') || answer.toLowerCase().includes('jane')) {
         setError('Your name is too normal. Please enter a more interesting name.');
-        return false;
-      }
-    }
-
-    if (question.id === 'timelock-confirm') {
-      const gateOpen = nowTick % 7000 < 1800;
-      if (!gateOpen) {
-        dispatch({ type: 'SET_LOCKOUT', until: Date.now() + 1400 });
-        setError('Time-lock gate is CLOSED. Wait for OPEN status.');
         return false;
       }
     }
@@ -1299,15 +1351,18 @@ function TourContent() {
       pushFeed('Pity threshold reached: chaos token granted.');
     }
 
-    const beforeValidateEvent = scheduleTourEventMaximum({
-      trigger: 'before-validate',
-      now,
-      lastEventAt: runState.lastEventAt,
-      catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
-      baseChance: MAXIMUM_HOSTILITY.tour.beforeValidateChance * eventAssistMultiplier,
-      rng: salt => seeded(salt, 1),
-    });
-    if (beforeValidateEvent && applyEvent(beforeValidateEvent, EFFECTIVE_PHASE, mercy, 1)) return;
+    const bypassTimelockEventChaos = currentQuestion.id === 'timelock-confirm';
+    if (!bypassTimelockEventChaos) {
+      const beforeValidateEvent = scheduleTourEventMaximum({
+        trigger: 'before-validate',
+        now,
+        lastEventAt: runState.lastEventAt,
+        catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
+        baseChance: MAXIMUM_HOSTILITY.tour.beforeValidateChance * eventAssistMultiplier,
+        rng: salt => seeded(salt, 1),
+      });
+      if (beforeValidateEvent && applyEvent(beforeValidateEvent, EFFECTIVE_PHASE, mercy, 1)) return;
+    }
 
     if (!validateStep(currentQuestion, mercy)) {
       validationFailedThisStepRef.current = true;
@@ -1319,25 +1374,29 @@ function TourContent() {
       return;
     }
 
-    const afterValidateEvent = scheduleTourEventMaximum({
-      trigger: 'after-validate',
-      now,
-      lastEventAt: runState.lastEventAt,
-      catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
-      baseChance: MAXIMUM_HOSTILITY.tour.afterValidateChance * eventAssistMultiplier,
-      rng: salt => seeded(salt, 2),
-    });
-    if (afterValidateEvent && applyEvent(afterValidateEvent, EFFECTIVE_PHASE, mercy, 2)) return;
+    if (!bypassTimelockEventChaos) {
+      const afterValidateEvent = scheduleTourEventMaximum({
+        trigger: 'after-validate',
+        now,
+        lastEventAt: runState.lastEventAt,
+        catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
+        baseChance: MAXIMUM_HOSTILITY.tour.afterValidateChance * eventAssistMultiplier,
+        rng: salt => seeded(salt, 2),
+      });
+      if (afterValidateEvent && applyEvent(afterValidateEvent, EFFECTIVE_PHASE, mercy, 2)) return;
+    }
 
-    const beforeTransitionEvent = scheduleTourEventMaximum({
-      trigger: 'before-transition',
-      now: Date.now(),
-      lastEventAt: runState.lastEventAt,
-      catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
-      baseChance: MAXIMUM_HOSTILITY.tour.beforeTransitionChance * eventAssistMultiplier,
-      rng: salt => seeded(salt, 3),
-    });
-    if (beforeTransitionEvent && applyEvent(beforeTransitionEvent, EFFECTIVE_PHASE, mercy, 3)) return;
+    if (!bypassTimelockEventChaos) {
+      const beforeTransitionEvent = scheduleTourEventMaximum({
+        trigger: 'before-transition',
+        now: Date.now(),
+        lastEventAt: runState.lastEventAt,
+        catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
+        baseChance: MAXIMUM_HOSTILITY.tour.beforeTransitionChance * eventAssistMultiplier,
+        rng: salt => seeded(salt, 3),
+      });
+      if (beforeTransitionEvent && applyEvent(beforeTransitionEvent, EFFECTIVE_PHASE, mercy, 3)) return;
+    }
 
     if (!mercy && runState.hardRegressions < MAX_HARD_REGRESSIONS && Math.random() < MAXIMUM_HOSTILITY.tour.regressionChance) {
       dispatch({ type: 'REGRESS', phase: EFFECTIVE_PHASE });
@@ -1588,7 +1647,7 @@ function TourContent() {
                     disclaimer={disclaimer}
                     gateOpen={nowTick % 7000 < 1800}
                     expectedPin={String((runState.step + runState.strikes + attemptsOnCurrentStep) % 10)}
-                    assistTier={assistTier}
+                    minigameAssistTier={minigameAssistTier}
                     activeFailStreak={activeFailStreak}
                     minigameStatus={minigameStatus}
                     onMinigameStatus={handleMinigameStatus}
@@ -1646,7 +1705,9 @@ function TourContent() {
                   <p className="text-[11px] mt-1" style={{ fontFamily: "'VT323', monospace" }}>Attempts on current step: {attemptsOnCurrentStep}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Pity pass: {pityPass ? 'ACTIVE' : `at ${PITY_PASS_TRIGGER} attempts`}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Recovery tokens: {runState.recoveryTokens}</p>
-                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Persistence streak: {activeFailStreak} | Assist tier: {assistTier}</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>
+                    Persistence streak: {activeFailStreak} | Assist tier: {assistTier} | Minigame coaching: {minigameAssistTier}
+                  </p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Validation relief: -{validationStreakRelief.toFixed(2)} | Event scale: x{eventAssistMultiplier.toFixed(2)}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Sabotage softening: {effectivePityForSabotage ? 'ON' : 'OFF'} | Hint ramp: {assistTier >= 2 ? 'tier-2' : assistTier >= 1 ? 'tier-1' : 'base'}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Chaos combo: x{runState.skillChaos.combo} (peak x{runState.skillChaos.peakCombo})</p>
@@ -1712,7 +1773,7 @@ function QuestionCard({
   disclaimer,
   gateOpen,
   expectedPin,
-  assistTier,
+  minigameAssistTier,
   activeFailStreak,
   minigameStatus,
   onMinigameStatus,
@@ -1729,7 +1790,7 @@ function QuestionCard({
   disclaimer: string;
   gateOpen: boolean;
   expectedPin: string;
-  assistTier: AssistTier;
+  minigameAssistTier: AssistTier;
   activeFailStreak: number;
   minigameStatus: ActiveMinigameStatus | null;
   onMinigameStatus: (gameId: MinigameId, status: MinigameStatusPayload) => void;
@@ -1742,9 +1803,14 @@ function QuestionCard({
     { bg: 'bg-[#C0C0C0]', border: 'border-4 border-outset' },
   ];
   const style = styles[question.questionNumber % styles.length];
+  const cardRotation = useMemo(() => stableRotation(`card:${question.id}`, 1.2), [question.id]);
+
+  useEffect(() => {
+    setTooltipVisible(question.type === 'minigame' || question.id === 'memory-trap' || question.id === 'timelock-confirm');
+  }, [question.id, question.type]);
 
   return (
-    <div className={`res-control-safe ${style.bg} ${style.border} p-6 shadow-ugly relative ${className || ''}`} style={{ transform: `rotate(${(Math.random() - 0.5) * 2}deg)` }}>
+    <div className={`res-control-safe ${style.bg} ${style.border} p-6 shadow-ugly relative ${className || ''}`} style={{ transform: `rotate(${cardRotation}deg)` }}>
       <div className="absolute -top-4 -left-4 w-12 h-12 bg-[#FF69B4] rounded-full flex items-center justify-center text-white font-bold shadow-lg animate-pulse" style={{ fontFamily: "'Bangers', cursive" }}>#{question.questionNumber}</div>
 
       <h2 className="text-2xl md:text-3xl mb-2 text-center" style={{ fontFamily: "'Bangers', cursive", color: '#8B4513', textShadow: '2px 2px 0 #FFFF99' }}>{question.title}</h2>
@@ -1754,7 +1820,7 @@ function QuestionCard({
         {renderQuestionContent(question, answer, onAnswer, gateOpen, expectedPin, {
           phase,
           attemptsOnStep,
-          assistTier,
+          minigameAssistTier,
           onMinigamePass,
           onMinigameFail,
           onMinigameStatus,
@@ -1762,40 +1828,63 @@ function QuestionCard({
       </div>
 
       {question.type === 'minigame' && (
-        <div className="p-3 mb-4 bg-[#FFF8DC] border-2 border-dashed border-[#8B4513]" style={{ fontFamily: "'VT323', monospace" }}>
-          <p className="text-xs font-bold">MINIGAME STATUS</p>
-          <p className="text-[11px]">
-            Mode: {minigameStatus?.mode || 'running'} | Fails: {minigameStatus?.fails ?? 0} | Assist tier: {assistTier} (streak {activeFailStreak})
+        <div className="assist-panel">
+          <p className="assist-kicker">MINIGAME STATUS</p>
+          <p className="assist-copy">
+            Mode: {minigameStatus?.mode || 'running'} | Fails: {minigameStatus?.fails ?? 0} | Coaching tier: {minigameAssistTier} (streak {activeFailStreak})
           </p>
           {(typeof minigameStatus?.selectedCount === 'number' || typeof minigameStatus?.cycle === 'number') && (
-            <p className="text-[11px]">
-              Queue progress: {minigameStatus?.selectedCount ?? 0}/4 selected | Cycle {minigameStatus?.cycle ?? 0}
+            <p className="assist-copy">
+              Queue progress: {minigameStatus?.selectedCount ?? 0}/4 selected | Cycle {minigameStatus?.cycle ?? 0} | Rule mode {minigameStatus?.ruleMode || 'A/B'}
             </p>
           )}
           {typeof minigameStatus?.moves === 'number' && (
-            <p className="text-[11px]">
+            <p className="assist-copy">
               Maze progress: {minigameStatus.moves}/9 moves
             </p>
           )}
           {(typeof minigameStatus?.round === 'number' || typeof minigameStatus?.timeLeft === 'number') && (
-            <p className="text-[11px]">
+            <p className="assist-copy">
               Captcha progress: Round {minigameStatus?.round ?? 1}/3 | Time {Math.max(0, minigameStatus?.timeLeft ?? 0)}s
             </p>
           )}
-          <p className="text-[11px]">Reset policy: progress persists through lockout/freeze/noise. Reset only on minigame fail or step change.</p>
-          <p className="text-[11px]">Last reset: {minigameStatus?.lastResetReason || 'None yet.'}</p>
+          <p className="assist-copy">Reset policy: progress persists through lockout/freeze/noise. Reset only on minigame fail or step change.</p>
+          <p className="assist-copy">Last reset: {minigameStatus?.lastResetReason || 'None yet.'}</p>
         </div>
       )}
 
-      {error && <div className="p-3 bg-[#FFE4E1] border-2 border-[#FF0000] text-[#FF0000] animate-shake" style={{ fontFamily: "'Comic Neue', cursive" }}>⚠️ {error}</div>}
+      {question.type === 'minigame' && (
+        <div className="assist-panel">
+          <p className="assist-kicker">HOW TO PASS THIS MINIGAME</p>
+          <p className="assist-copy">Goal: {question.requiredWinCondition || 'Complete the run condition shown in the minigame.'}</p>
+          {question.minigameId === 'bureaucracy-queue' && (
+            <p className="assist-copy">
+              Policy: Submit exactly 4 docs. Mode A/B flips after failed submit. Current mode: {minigameStatus?.ruleMode || 'A/B'}.
+            </p>
+          )}
+          {question.minigameId === 'maze-consent' && (
+            <p className="assist-copy">Policy: Follow the safe route to E in 9 moves; decoy tile always resets.</p>
+          )}
+          {question.minigameId === 'captcha-gauntlet' && (
+            <p className="assist-copy">Policy: Clear 3 rounds in one sequence before timeout.</p>
+          )}
+          <p className="assist-copy">
+            Active coaching: {minigameAssistTier === 0 ? 'Base clarity' : minigameAssistTier === 1 ? 'Tier 1 guidance active' : 'Tier 2 strongest guidance active'}
+          </p>
+        </div>
+      )}
+
+      {error && <div className="assist-inline-alert" style={{ fontFamily: "'Comic Neue', cursive" }}>⚠️ {error}</div>}
 
       <div className="mt-4 text-sm text-[#666666] relative" style={{ fontFamily: "'VT323', monospace" }}>
-        <button onMouseEnter={() => setTooltipVisible(true)} onMouseLeave={() => setTooltipVisible(false)} className="text-[#0066CC] underline">💡 Need help?</button>
+        <button type="button" onClick={() => setTooltipVisible(prev => !prev)} className="text-[#0066CC] underline">
+          💡 {tooltipVisible ? 'Hide help' : 'Show help'}
+        </button>
         {tooltipVisible && (
-          <div className="tooltip-evil absolute left-0 top-full mt-2" style={{ zIndex: 100 }}>
+          <div className="tooltip-evil mt-2 assist-panel">
             <p className="font-bold mb-1" style={{ fontFamily: "'Bangers', cursive" }}>HELP IS HERE!</p>
-            <p>{question.helpText}</p>
-            <p className="text-[8px] text-[#999999] mt-2">(This tooltip may be covering important information)</p>
+            <p className="assist-copy">{question.helpText}</p>
+            <p className="assist-copy text-[#999999]">(Tap/click to close this help panel.)</p>
           </div>
         )}
       </div>
@@ -1814,7 +1903,7 @@ function renderQuestionContent(
   minigameContext: {
     phase: 1 | 2 | 3;
     attemptsOnStep: number;
-    assistTier: AssistTier;
+    minigameAssistTier: AssistTier;
     onMinigamePass: (gameId: MinigameId, meta: Record<string, number>) => void;
     onMinigameFail: (gameId: MinigameId) => void;
     onMinigameStatus: (gameId: MinigameId, status: MinigameStatusPayload) => void;
@@ -1826,7 +1915,7 @@ function renderQuestionContent(
       return (
         <BureaucracyQueue
           attemptCount={minigameContext.attemptsOnStep}
-          assistTier={minigameContext.assistTier}
+          assistTier={minigameContext.minigameAssistTier}
           onPass={meta => minigameContext.onMinigamePass(gameId, meta)}
           onFail={() => minigameContext.onMinigameFail(gameId)}
           onStatus={status => minigameContext.onMinigameStatus(gameId, status)}
@@ -1838,7 +1927,7 @@ function renderQuestionContent(
         <MazeOfConsent
           phase={minigameContext.phase}
           attemptCount={minigameContext.attemptsOnStep}
-          assistTier={minigameContext.assistTier}
+          assistTier={minigameContext.minigameAssistTier}
           onPass={meta => minigameContext.onMinigamePass(gameId, meta)}
           onFail={() => minigameContext.onMinigameFail(gameId)}
           onStatus={status => minigameContext.onMinigameStatus(gameId, status)}
@@ -1849,7 +1938,7 @@ function renderQuestionContent(
       <CaptchaGauntlet
         phase={minigameContext.phase}
         attemptCount={minigameContext.attemptsOnStep}
-        assistTier={minigameContext.assistTier}
+        assistTier={minigameContext.minigameAssistTier}
         onPass={meta => minigameContext.onMinigamePass(gameId, meta)}
         onFail={() => minigameContext.onMinigameFail(gameId)}
         onStatus={status => minigameContext.onMinigameStatus(gameId, status)}
@@ -1859,6 +1948,32 @@ function renderQuestionContent(
 
   if (question.type === 'slider') {
     return <HostileSlider label="How confident are you right now?" value={(answer as number) || 97} onChange={onAnswer} />;
+  }
+
+  if (question.id === 'memory-trap') {
+    const value = typeof answer === 'string' ? answer : '';
+    return (
+      <div className="space-y-2">
+        <label className="block text-sm" style={{ fontFamily: "'Comic Neue', cursive" }}>
+          Recall Code
+        </label>
+        <select
+          value={value}
+          onChange={e => onAnswer(e.target.value)}
+          className="assist-select"
+          required
+          aria-label="Select the sound code you chose in step 3"
+        >
+          <option value="">Select exact code from Step 3</option>
+          {MEMORY_SOUND_CODES.map(option => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <p className="assist-copy">Choose the exact sound code you selected earlier.</p>
+      </div>
+    );
   }
 
   if (question.type === 'input' || question.type === 'memory') {
@@ -1898,14 +2013,29 @@ function renderQuestionContent(
   }
 
   if (question.type === 'timelock') {
+    const selectedAction = typeof answer === 'string' ? answer : '';
+    const selectedLabel = question.options?.find(option => option.value === selectedAction)?.label || 'None selected';
     return (
       <div className="space-y-3">
         <div className={`p-3 border-2 ${gateOpen ? 'bg-[#39FF14] border-[#8B4513]' : 'bg-[#FFE4E1] border-[#FF0000] animate-blink-fast'}`} style={{ fontFamily: "'VT323', monospace" }}>
           Gate status: {gateOpen ? 'OPEN' : 'CLOSED'}
         </div>
+        <div className="assist-panel">
+          <p className="assist-kicker">TIME-LOCK CHECKLIST</p>
+          <p className="assist-copy">1) Pick any action. 2) Wait for OPEN. 3) Press Next immediately.</p>
+          <p className="assist-copy">
+            Selected action: <strong>{selectedLabel}</strong>
+          </p>
+        </div>
         {question.options?.map(option => (
-          <button key={option.id} onClick={() => onAnswer(option.value)} className={`w-full p-3 text-left border-2 transition-all ${answer === option.value ? 'bg-[#E6E6FA] border-[#8B4513]' : 'bg-white border-[#808080]'}`} style={{ fontFamily: "'Comic Neue', cursive" }}>
-            {option.label}
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => onAnswer(option.value)}
+            className={`w-full p-3 text-left border-2 transition-all ${selectedAction === option.value ? 'bg-[#E6E6FA] border-[#8B4513] ring-2 ring-[#39FF14]' : 'bg-white border-[#808080]'}`}
+            style={{ fontFamily: "'Comic Neue', cursive" }}
+          >
+            {selectedAction === option.value ? '✓ ' : ''}{option.label}
           </button>
         ))}
       </div>
@@ -1944,7 +2074,18 @@ function renderQuestionContent(
     return (
       <div className="flex flex-wrap gap-3 justify-center">
         {question.options?.map((option, index) => (
-          <button key={option.id} onClick={() => onAnswer(option.value)} className={`px-6 py-3 transition-all ${answer === option.value ? 'ring-4 ring-[#FF0000]' : ''}`} style={{ background: ['#FF0000', '#39FF14', '#00FFFF', '#FFFF00', '#FF69B4'][index % 5], color: index === 1 || index === 3 ? '#8B4513' : 'white', fontFamily: ['Bangers', 'Comic Neue', 'VT323', 'Press Start 2P', 'Arial Black'][index % 5], border: `${index + 2}px ${['solid', 'dashed', 'dotted', 'double'][index % 4]} #000`, transform: `rotate(${(Math.random() - 0.5) * 10}deg)` }}>
+          <button
+            key={option.id}
+            onClick={() => onAnswer(option.value)}
+            className={`px-6 py-3 transition-all ${answer === option.value ? 'ring-4 ring-[#FF0000]' : ''}`}
+            style={{
+              background: ['#FF0000', '#39FF14', '#00FFFF', '#FFFF00', '#FF69B4'][index % 5],
+              color: index === 1 || index === 3 ? '#8B4513' : 'white',
+              fontFamily: ['Bangers', 'Comic Neue', 'VT323', 'Press Start 2P', 'Arial Black'][index % 5],
+              border: `${index + 2}px ${['solid', 'dashed', 'dotted', 'double'][index % 4]} #000`,
+              transform: `rotate(${stableRotation(`button:${question.id}:${option.id}`, 5)}deg)`,
+            }}
+          >
             {option.label}
           </button>
         ))}

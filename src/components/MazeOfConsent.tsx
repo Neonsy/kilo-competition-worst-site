@@ -106,6 +106,10 @@ export function MazeOfConsent({ phase, attemptCount, assistTier, onPass, onFail,
     }
 
     if (cellId !== expectedNext) {
+      if (assistTier >= 2) {
+        setLastResetReason(`Wrong tile ignored by tier-2 assist. Expected ${expectedNext || 'route end'}.`);
+        return;
+      }
       resetRun(`Wrong tile selected. Expected ${expectedNext || 'route end'}.`);
       return;
     }
@@ -123,22 +127,24 @@ export function MazeOfConsent({ phase, attemptCount, assistTier, onPass, onFail,
     }
   };
 
-  const tierOneHint = expectedNext ? getDirection(current, expectedNext) : 'Final tile is adjacent.';
-  const tierTwoHint = expectedNext ? `Next safe tile: ${expectedNext}` : 'Step onto E to complete.';
+  const tierOneHint = expectedNext ? `Exact next safe tile: ${expectedNext}` : 'Step onto E to complete.';
+  const tierTwoHint = expectedNext ? `${getDirection(current, expectedNext)} Wrong non-decoy clicks are ignored.` : 'Step onto E to complete.';
 
   return (
     <div className="minigame-shell">
       <p className="minigame-title">Maze of Consent</p>
       <p className="minigame-subtitle">Reach the end tile in 9 moves or fewer. One fake success tile resets you.</p>
+      <p className="minigame-hint">How to pass: start at S, follow the safe route tile-by-tile, and avoid the decoy tile.</p>
       <div className="maze-grid">
         {cells.map(cell => {
           const visited = moves.includes(cell.id);
+          const isAssistTarget = assistTier >= 1 && expectedNext === cell.id;
           return (
             <button
               key={cell.id}
               type="button"
               onClick={() => clickCell(cell.id)}
-              className={`maze-cell ${visited ? 'visited' : ''} ${cell.id === '3-3' ? 'goal' : ''}`}
+              className={`maze-cell ${visited ? 'visited' : ''} ${cell.id === '3-3' ? 'goal' : ''} ${isAssistTarget ? 'assist-target-cell' : ''}`}
             >
               {cell.id === '0-0' ? 'S' : cell.id === '3-3' ? 'E' : '□'}
             </button>

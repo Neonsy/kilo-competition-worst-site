@@ -134,6 +134,9 @@ export function CursorCorruptionLayer({
   const lastHideBurstAtRef = useRef(0);
   const hideBurstTimerRef = useRef<number | null>(null);
   const syntheticClickGuardRef = useRef(false);
+  const scrollSuppressUntilRef = useRef(0);
+  const lastPointerRef = useRef<CursorPosition | null>(null);
+  const lastMoveRef = useRef<{ x: number; y: number; at: number }>({ x: -1, y: -1, at: 0 });
   const metricsRef = useRef<CursorCorruptionMetrics>({
     trailNodesSpawned: 0,
     decoyActivations: 0,
@@ -226,11 +229,20 @@ export function CursorCorruptionLayer({
   useEffect(() => {
     if (!active) return;
 
-    const onMove = (event: PointerEvent) => {
-      if (event.pointerType !== 'mouse') return;
-      const targetPersona = detectTargetPersona(event.target);
+    const handleMove = (clientX: number, clientY: number, target: EventTarget | null) => {
       const now = Date.now();
-      setPosition({ x: event.clientX, y: event.clientY });
+      if (lastMoveRef.current.x === clientX && lastMoveRef.current.y === clientY && now - lastMoveRef.current.at < 10) {
+        return;
+      }
+      lastMoveRef.current = { x: clientX, y: clientY, at: now };
+      lastPointerRef.current = { x: clientX, y: clientY };
+      const targetPersona = detectTargetPersona(target);
+      setPosition({ x: clientX, y: clientY });
+
+      if (now < scrollSuppressUntilRef.current) {
+        setPersona(targetPersona);
+        return;
+      }
 
       if (!prefersReducedMotion && now - lastTrailAtRef.current >= rules.presentation.trailSpawnIntervalMs) {
         lastTrailAtRef.current = now;
@@ -241,8 +253,8 @@ export function CursorCorruptionLayer({
         const variant = Math.random() < 0.72 ? targetPersona : randomPersona();
         const trail: CursorTrailNode = {
           id: `trail-${now}-${Math.random().toString(36).slice(2, 7)}`,
-          x: event.clientX + randomInRange(-3, 3),
-          y: event.clientY + randomInRange(-3, 3),
+          x: clientX + randomInRange(-3, 3),
+          y: clientY + randomInRange(-3, 3),
           variant,
           scale: randomInRange(rules.presentation.trailScaleRange[0], rules.presentation.trailScaleRange[1]),
           rotation: randomInRange(
@@ -280,8 +292,8 @@ export function CursorCorruptionLayer({
         if (!prefersReducedMotion) {
           const flash: CursorFlashNode = {
             id: `flash-${now}-${Math.random().toString(36).slice(2, 7)}`,
-            x: event.clientX,
-            y: event.clientY,
+            x: clientX,
+            y: clientY,
             scale: randomInRange(0.9, 1.5),
             opacity: randomInRange(0.24, 0.52),
             expiresAt: now + 520,
@@ -299,8 +311,8 @@ export function CursorCorruptionLayer({
               const offset = randomInRange(offsetMin, offsetMax);
               return {
                 id: `decoy-${now}-${index}-${Math.random().toString(36).slice(2, 7)}`,
-                x: event.clientX + Math.cos(angle) * offset,
-                y: event.clientY + Math.sin(angle) * offset,
+                x: clientX + Math.cos(angle) * offset,
+                y: clientY + Math.sin(angle) * offset,
                 variant: randomPersona(),
                 scale: randomInRange(0.9, 1.16),
                 rotation: randomInRange(-12, 12),
@@ -333,9 +345,19 @@ export function CursorCorruptionLayer({
       }
     };
 
+    const onMove = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return;
+      handleMove(event.clientX, event.clientY, event.target);
+    };
+
+    const onMouseMove = (event: MouseEvent) => {
+      handleMove(event.clientX, event.clientY, event.target);
+    };
+
     const onClickCapture = (event: MouseEvent) => {
       if (syntheticClickGuardRef.current) return;
       const now = Date.now();
+      if (now < scrollSuppressUntilRef.current) return;
       if (now >= desyncUntil || pityPass) return;
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
@@ -384,10 +406,12 @@ export function CursorCorruptionLayer({
     };
 
     document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('mousemove', onMouseMove, true);
     document.addEventListener('click', onClickCapture, true);
 
     return () => {
       document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('mousemove', onMouseMove, true);
       document.removeEventListener('click', onClickCapture, true);
       document.body.classList.remove('cursor-corruption-hide-brief');
       if (hideBurstTimerRef.current !== null) {
@@ -428,6 +452,35 @@ export function CursorCorruptionLayer({
 
   useEffect(() => {
     if (!active) return;
+    const onScroll = () => {
+      const now = Date.now();
+      scrollSuppressUntilRef.current = now + 220;
+      relaxUntilRef.current = Math.max(relaxUntilRef.current, scrollSuppressUntilRef.current);
+      setDesyncUntil(0);
+      setJitterUntil(0);
+      setTrailNodes([]);
+      setFlashNodes([]);
+      setDecoyNodes([]);
+      document.body.classList.remove('cursor-corruption-hide-brief');
+      if (hideBurstTimerRef.current !== null) {
+        window.clearTimeout(hideBurstTimerRef.current);
+        hideBurstTimerRef.current = null;
+      }
+      const lastPointer = lastPointerRef.current;
+      if (!lastPointer) return;
+      setPosition(lastPointer);
+      setRenderPosition(lastPointer);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [active]);
+
+  useEffect(() => {
+    if (!active) return;
+    if (Date.now() < scrollSuppressUntilRef.current) {
+      setRenderPosition(position);
+      return;
+    }
     const lag = randomInRange(rules.driftMsRange[0], rules.driftMsRange[1]);
     const timer = window.setTimeout(() => {
       const jitterX = tick < jitterUntil ? (Math.random() > 0.5 ? 1 : -1) * effectiveJitterPx : 0;

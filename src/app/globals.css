@@ -176,7 +176,7 @@
   100% { border-color: #7a1f2d; }
 }
 
-@keyframes void-hum {
+@keyframes void-hum-overlay {
   0%, 100% { filter: hue-rotate(0deg) saturate(1) contrast(1); }
   33% { filter: hue-rotate(-10deg) saturate(1.08) contrast(1.06); }
   66% { filter: hue-rotate(14deg) saturate(0.92) contrast(1.1); }
@@ -199,7 +199,6 @@ body {
   cursor: default;
   min-height: 100vh;
   overflow-x: hidden; /* But we'll force horizontal scroll in places */
-  animation: void-hum 13s linear infinite;
 }
 
 body::before {
@@ -214,7 +213,9 @@ body::before {
     linear-gradient(160deg, rgba(12, 12, 14, 0.62) 0%, rgba(24, 20, 18, 0.44) 48%, rgba(10, 10, 12, 0.66) 100%);
   mix-blend-mode: multiply;
   opacity: 0.74;
-  animation: void-fog-drift 22s ease-in-out infinite;
+  animation:
+    void-fog-drift 22s ease-in-out infinite,
+    void-hum-overlay 13s linear infinite;
 }
 
 body::after {
@@ -1791,7 +1792,8 @@ body::after {
 .minigame-subtitle,
 .minigame-hint {
   font-family: 'VT323', monospace;
-  font-size: 13px;
+  font-size: 16px;
+  line-height: 1.4;
   color: #8B4513;
 }
 
@@ -1822,6 +1824,63 @@ body::after {
   color: #8B4513;
   padding: 7px 10px;
   font-family: 'Bangers', cursive;
+}
+
+.minigame-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.assist-panel {
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #fff8dc;
+  border: 2px dashed #8b4513;
+  font-family: 'VT323', monospace;
+}
+
+.assist-kicker {
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 700;
+  color: #6c2f00;
+}
+
+.assist-copy {
+  font-size: 14px;
+  line-height: 1.45;
+  color: #6c2f00;
+}
+
+.assist-inline-alert {
+  margin-top: 8px;
+  margin-bottom: 10px;
+  padding: 10px;
+  font-size: 15px;
+  line-height: 1.4;
+  background: #ffe4e1;
+  border: 2px solid #ff0000;
+  color: #b30000;
+}
+
+.assist-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #8b4513;
+  background: #fffef1;
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  color: #5b2500;
+}
+
+.assist-target-cell {
+  outline: 3px solid #39ff14;
+  box-shadow: 0 0 0 2px #8b4513 inset;
+}
+
+.assist-option-target {
+  outline: 3px solid #39ff14;
+  box-shadow: 0 0 0 2px #8b4513 inset;
 }
 
 .maze-grid {

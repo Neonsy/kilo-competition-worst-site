@@ -8,6 +8,8 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 
 ## Recently Completed
 
+- [x] Grain veil reduction pass (2026-02-17):
+  - Reduced `SignalNoiseVeil` grain opacity in normal and pulse states to make fake-browser content less obscured while keeping the hostile signal aesthetic.
 - [x] Base Next.js 16 setup with App Router
 - [x] TypeScript configuration with strict mode
 - [x] Tailwind CSS 4 integration with custom chaos styles
@@ -237,6 +239,13 @@ A deliberately awful website that masquerades as an interactive museum of terrib
   - Updated `CursorCorruptionLayer` to render its visual layer through a `document.body` portal so trails/ghosts/primary cursor stay viewport-global even when local containers are transformed
   - Added `CursorCorruptionLayer` mount to `/tour` pre-start view so cursor corruption remains active before the run starts
   - Kept existing telemetry/event wiring unchanged for the started `/tour` branch
+- [x] Captcha terminal pass + cursor scroll realignment pass:
+  - Hardened `CaptchaGauntlet` so `mode: passed` is terminal for the mounted run and cannot be mutated by timer/timeout callbacks or extra submits
+  - Hardened `CursorCorruptionLayer` scroll handling to snap to last pointer, suppress burst chaos briefly, and clear transient desync artifacts during scroll
+- [x] Cursor footer alignment + memory-trap solvability hardening pass:
+  - Moved global hum filter animation off `body` and onto fog overlay layers so fixed cursor rendering is no longer trapped when scrolling into footer regions
+  - Added canonical memory sound-code contract (`MEMORY_SOUND_CODES` + `normalizeMemorySoundCode`) and wired both Step 3 and Step 7 to the shared values
+  - Protected memory-critical answers from input corruption and added strict auto-heal fallback in memory-trap validation when legacy/corrupted baseline data is invalid
 
 ## Current Structure
 
@@ -327,3 +336,9 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | 2026-02-17 | Implemented certificate audio scene override: `victory.mp3` plays on each valid certificate visit, certificate view suppresses queue+soundscape to silence after track end, queue resumes from next track on route exit, and invalid certificate access now auto-redirects to `/tour` |
 | 2026-02-17 | Implemented adaptive persistence assist and minigame reliability rebalance: fail-streak-driven assist tiers, clearer minigame run/reset status, solvable phase-3 maze routing, captcha timeout reset fix + timer assist, and queue/maze/captcha progressive hint ramps |
 | 2026-02-17 | Implemented cursor body-portal coverage fix: `CursorCorruptionLayer` now renders via `document.body` portal for full-viewport trails, and `/tour` pre-start now mounts cursor corruption so behavior is route-wide before run start |
+| 2026-02-17 | Fixed Bureaucracy Queue tier-2 solvability bug: after failed submit, locked first slot now aligns to the *next* active rule mode/order instead of the previous one, preventing impossible alternating lock states |
+| 2026-02-17 | Implemented tour readability + novice-completion pass: stable non-random core card/button rotations, memory-trap dropdown, click/tap help panel defaults, larger assist typography, minigame-specific coaching tiers (2/4 fail ramp), Bureau tier-2 two-slot lock assist, Maze tier-2 non-failing wrong-click guard, Captcha tier-2 delayed correct-option highlight, and noise safe-zone masking in `SignalNoiseVeil` |
+| 2026-02-17 | Hardened timelock UX for reliability under hostility: auto-default timelock selection, explicit selected-action confirmation panel, deterministic timelock validation (no random fail), bypassed pre/post/before-transition event-chaos on timelock commit, and converted help panel from hover/absolute behavior to click/tap-friendly in-flow panel |
+| 2026-02-17 | Hotfix: disabled disruptive popup spawning/rendering on `/tour` via `PopupManager` route suppression so core tour controls/help cannot be blocked by modal chaos during progression-critical steps |
+| 2026-02-17 | Implemented captcha post-pass freeze + cursor scroll realignment: captcha pass now hard-freezes mounted run state (no post-pass timer timeout mutation), and cursor corruption now snaps/suppresses on scroll to prevent persistent trailer offset drift |
+| 2026-02-17 | Implemented cursor footer alignment + memory-trap solvability fix: moved hum filter animation off `body` to preserve fixed cursor alignment at footer scroll extremes, introduced shared canonical memory sound codes, blocked corruption on memory-critical fields, and added strict auto-heal memory baseline recovery so Step 7 cannot become unwinnable |

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { getRandomPopup } from '@/data/disclaimers';
 
 type PopupVariant = 'normal' | 'annoying' | 'impossible';
@@ -190,11 +191,14 @@ export function Toast({ id, message, duration = 3000, stackIndex, onClose }: Toa
 
 // Popup manager component
 export function PopupManager({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [activePopups, setActivePopups] = useState<PopupInstance[]>([]);
   const [toasts, setToasts] = useState<Array<{ id: string; message: string }>>([]);
   const [popupCount, setPopupCount] = useState(0);
+  const suppressForTour = pathname?.startsWith('/tour');
 
   const spawnPopup = useCallback((forcedVariant?: PopupVariant) => {
+    if (suppressForTour) return;
     const variantPool: PopupVariant[] = ['normal', 'annoying', 'impossible'];
     const skinPool: PopupSkin[] = ['classic', 'terminal', 'hazard', 'sticky'];
     const interactionPool: PopupInteraction[] = ['normal', 'countdown', 'confirm-twice', 'teleport-button'];
@@ -219,9 +223,16 @@ export function PopupManager({ children }: { children: React.ReactNode }) {
       ];
     });
     setPopupCount(prev => prev + 1);
-  }, []);
+  }, [suppressForTour]);
 
   useEffect(() => {
+    if (!suppressForTour) return;
+    setActivePopups([]);
+    setToasts([]);
+  }, [suppressForTour]);
+
+  useEffect(() => {
+    if (suppressForTour) return;
     // Show a popup shortly after landing.
     const timer = setTimeout(() => {
       if (popupCount === 0) {
@@ -231,10 +242,11 @@ export function PopupManager({ children }: { children: React.ReactNode }) {
     }, 1500 + Math.floor(Math.random() * 1700));
 
     return () => clearTimeout(timer);
-  }, [popupCount, spawnPopup]);
+  }, [popupCount, spawnPopup, suppressForTour]);
 
   // Frequent random popup trigger.
   useEffect(() => {
+    if (suppressForTour) return;
     const interval = setInterval(() => {
       if (Math.random() > 0.68 && activePopups.length < 3) {
         spawnPopup();
@@ -242,10 +254,11 @@ export function PopupManager({ children }: { children: React.ReactNode }) {
     }, 9000);
 
     return () => clearInterval(interval);
-  }, [activePopups.length, spawnPopup]);
+  }, [activePopups.length, spawnPopup, suppressForTour]);
 
   // Exit intent popup.
   useEffect(() => {
+    if (suppressForTour) return;
     const handleMouseLeaveTop = (e: MouseEvent) => {
       if (e.clientY <= 6 && Math.random() > 0.45 && activePopups.length < 3) {
         spawnPopup('impossible');
@@ -253,10 +266,11 @@ export function PopupManager({ children }: { children: React.ReactNode }) {
     };
     document.addEventListener('mouseout', handleMouseLeaveTop);
     return () => document.removeEventListener('mouseout', handleMouseLeaveTop);
-  }, [activePopups.length, spawnPopup]);
+  }, [activePopups.length, spawnPopup, suppressForTour]);
 
   // Scroll-depth popup.
   useEffect(() => {
+    if (suppressForTour) return;
     const handleScroll = () => {
       if (activePopups.length < 3 && window.scrollY > 280 && Math.random() > 0.8) {
         spawnPopup('annoying');
@@ -264,9 +278,10 @@ export function PopupManager({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [activePopups.length, spawnPopup]);
+  }, [activePopups.length, spawnPopup, suppressForTour]);
 
   const closePopup = (id: string) => {
+    if (suppressForTour) return;
     setActivePopups(prev => prev.filter(popup => popup.id !== id));
     // Show toast after closing popup
     const messages = [
