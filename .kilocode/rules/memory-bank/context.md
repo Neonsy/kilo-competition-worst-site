@@ -233,6 +233,10 @@ A deliberately awful website that masquerades as an interactive museum of terrib
   - Fixed Maze path solvability in phase 3 by excluding decoy-dependent routes
   - Fixed Captcha timeout reset loop by forcing timer reset on timeout and added adaptive timer extension hints
   - Improved Bureaucracy Queue clarity (rule-mode copy/status/reset reason) and added tier-2 first-slot lock assistance after failed submit
+- [x] Cursor body-portal coverage pass:
+  - Updated `CursorCorruptionLayer` to render its visual layer through a `document.body` portal so trails/ghosts/primary cursor stay viewport-global even when local containers are transformed
+  - Added `CursorCorruptionLayer` mount to `/tour` pre-start view so cursor corruption remains active before the run starts
+  - Kept existing telemetry/event wiring unchanged for the started `/tour` branch
 
 ## Current Structure
 
@@ -322,3 +326,4 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | 2026-02-17 | Removed gate revision copy from loader cards and enforced desktop non-reduced-motion native-cursor hiding under active corruption, with higher-priority normal-blend custom pointer rendering for stronger cursor confusion |
 | 2026-02-17 | Implemented certificate audio scene override: `victory.mp3` plays on each valid certificate visit, certificate view suppresses queue+soundscape to silence after track end, queue resumes from next track on route exit, and invalid certificate access now auto-redirects to `/tour` |
 | 2026-02-17 | Implemented adaptive persistence assist and minigame reliability rebalance: fail-streak-driven assist tiers, clearer minigame run/reset status, solvable phase-3 maze routing, captcha timeout reset fix + timer assist, and queue/maze/captcha progressive hint ramps |
+| 2026-02-17 | Implemented cursor body-portal coverage fix: `CursorCorruptionLayer` now renders via `document.body` portal for full-viewport trails, and `/tour` pre-start now mounts cursor corruption so behavior is route-wide before run start |

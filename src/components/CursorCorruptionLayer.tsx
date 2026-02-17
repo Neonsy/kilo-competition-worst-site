@@ -1,6 +1,7 @@
 'use client';
 
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { HostilityMode, HostilityPhase, hostilityPrimitives, randomInRange, withPityAdjustment } from '@/data/hostilityPrimitives';
 
 type CursorPersona = 'pointer' | 'text' | 'wait' | 'not-allowed' | 'crosshair';
@@ -126,6 +127,7 @@ export function CursorCorruptionLayer({
   const [flashNodes, setFlashNodes] = useState<CursorFlashNode[]>([]);
   const [decoyNodes, setDecoyNodes] = useState<CursorDecoyNode[]>([]);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const missedRef = useRef(0);
   const relaxUntilRef = useRef(0);
   const lastTrailAtRef = useRef(0);
@@ -178,6 +180,11 @@ export function CursorCorruptionLayer({
   useEffect(() => {
     const timer = setInterval(() => setTick(Date.now()), 120);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    setPortalTarget(document.body);
   }, []);
 
   useEffect(() => {
@@ -459,7 +466,7 @@ export function CursorCorruptionLayer({
     };
   });
 
-  return (
+  const layer = (
     <div className="cursor-corruption-layer" aria-hidden>
       {!prefersReducedMotion &&
         trailNodes.map(node => (
@@ -504,6 +511,8 @@ export function CursorCorruptionLayer({
       />
     </div>
   );
+
+  return portalTarget ? createPortal(layer, portalTarget) : null;
 }
 
 export default CursorCorruptionLayer;

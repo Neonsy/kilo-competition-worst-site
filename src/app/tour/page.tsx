@@ -1387,6 +1387,7 @@ function TourContent() {
             <SideNav />
             <main className="relative flex-1 overflow-x-hidden">
               <LivingOverlay mode="tour" phase={EFFECTIVE_PHASE} hostilityMode={HOSTILITY_MODE} intensity={MAXIMUM_HOSTILITY.overlay.intensity} mobileHostile />
+              <CursorCorruptionLayer phase={EFFECTIVE_PHASE} hostilityMode={HOSTILITY_MODE} pityPass={false} active eventPulse={0} />
               <div className="min-h-[80vh] flex items-center justify-center p-4">
                 <div className="max-w-lg w-full p-8 bg-[#F5F5DC] border-8 border-double border-[#8B4513] shadow-chaos relative z-10" style={{ fontFamily: "'Comic Neue', cursive" }}>
                   <div className="text-center">
