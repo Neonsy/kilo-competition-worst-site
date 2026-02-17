@@ -198,7 +198,8 @@ A deliberately awful website that masquerades as an interactive museum of terrib
   - Extended `MAXIMUM_HOSTILITY.entryGate` with `progressHoldAt100Ms` (`600`) and `chaosProfile` (`aggressive-readable`)
   - `GlobalGlitchGate` now computes explicit milestones (`fadeStartAtMs`, `progressCompleteAtMs`) and latches progress at `100%` before fade, preventing post-100 regressions
   - Fade starts only at `fadeStartAtMs`; release contract remains timeline-authoritative and unchanged
-  - Added aggressive-readable kinetics for both consent and gate cards: split glitching title lines, marquee/sway text tracks, CTA micro-drift, animated status rail, and non-interactive fake gate controls (`REROUTE`/`RETRY`/`HOLD`) with `prefers-reduced-motion` fallbacks
+  - Added aggressive-readable kinetics for both consent and gate cards: split glitching title lines, marquee/sway text tracks, animated status rail, and non-interactive fake gate controls (`REROUTE`/`RETRY`/`HOLD`) with `prefers-reduced-motion` fallbacks
+  - Retuned aggressive profile into volatile spatial+temporal instability (burst shears/desync spikes) and enabled chaotic consent CTA hitbox drift while preserving a medium readability floor
 
 ## Current Structure
 
@@ -263,7 +264,7 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | 2026-02-17 | Resonance light-profile tuning: stronger light shell effects and broader settings-page shell coverage |
 | 2026-02-17 | Maximum Hostility Everywhere pass: phase-free fixed max values, tour event scheduler swap (`scheduleTourEventMaximum`), route-wide heartbeat + max resonance/overlay/cursor wiring |
 | 2026-02-17 | Dark weird visual retune: global palette inversion from bright pastel to muddy-dark tones plus nav hardcoded color replacement and full-page void tint overlays |
-| 2026-02-17 | Entry/gate chaos + timing lock: aggressive-readable consent/gate chaos profile (extra text/button kinetics + fake gate controls) and deterministic `100%` hold (`600ms`) before fade start in `GlobalGlitchGate` |
+| 2026-02-17 | Entry/gate chaos + timing lock: aggressive-readable profile retuned to volatile spatial+temporal instability with chaotic consent CTA hitbox drift, fake gate controls, and deterministic `100%` hold (`600ms`) before fade start in `GlobalGlitchGate` |
 | 2026-02-17 | Minor readability rollback: reduced global blocker strength and moved route tint overlays below content to recover legibility without reverting theme |
 | 2026-02-17 | Popup pass: introduced concurrent popup stack, skin variants, and new interaction mechanics for more varied hostile interruptions |
 | 2026-02-17 | Favicon switched to Wikimedia error icon URL via metadata |
