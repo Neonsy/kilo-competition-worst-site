@@ -8,6 +8,9 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 
 ## Recently Completed
 
+- [x] Custom not-found route pass (2026-02-17):
+  - Added `src/app/not-found.tsx` as a standalone chaos 404 panel with an always-shifting bounded `Back To Home` button (`href="/"`) and strict no-overflow viewport/stage containment.
+- [x] Certificate victory loop update (2026-02-17): `src/app/certificate/page.tsx` now sets `victory.mp3` to loop for the full certificate session (until route cleanup).
 - [x] Grain veil reduction pass (2026-02-17):
   - Reduced `SignalNoiseVeil` grain opacity in normal and pulse states to make fake-browser content less obscured while keeping the hostile signal aesthetic.
 - [x] Base Next.js 16 setup with App Router
@@ -299,6 +302,7 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 
 | Date | Changes |
 |------|---------|
+| 2026-02-17 | Added custom App Router `not-found` page (`src/app/not-found.tsx`) with chaos styling, continuously shifting bounded home button, and explicit overflow prevention for mobile/desktop viewports |
 | 2026-02-16 | Complete Museum of Bad Decisions built from scratch |
 | 2026-02-16 | Added hostile UX escalation pass while preserving one valid completion path |
 | 2026-02-16 | Implemented 12-step stateful hostility engine + living overlays across Tour/Home/Exhibits |
@@ -342,3 +346,4 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | 2026-02-17 | Hotfix: disabled disruptive popup spawning/rendering on `/tour` via `PopupManager` route suppression so core tour controls/help cannot be blocked by modal chaos during progression-critical steps |
 | 2026-02-17 | Implemented captcha post-pass freeze + cursor scroll realignment: captcha pass now hard-freezes mounted run state (no post-pass timer timeout mutation), and cursor corruption now snaps/suppresses on scroll to prevent persistent trailer offset drift |
 | 2026-02-17 | Implemented cursor footer alignment + memory-trap solvability fix: moved hum filter animation off `body` to preserve fixed cursor alignment at footer scroll extremes, introduced shared canonical memory sound codes, blocked corruption on memory-critical fields, and added strict auto-heal memory baseline recovery so Step 7 cannot become unwinnable |
+| 2026-02-17 | Updated certificate victory music behavior to loop continuously while `/certificate` is mounted, while preserving existing scene lock/release and autoplay-blocked silence behavior |

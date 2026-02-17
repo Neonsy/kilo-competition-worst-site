@@ -141,7 +141,7 @@ export default function CertificatePage() {
 
     const victory = new Audio('/audio/victory/victory.mp3');
     victory.preload = 'auto';
-    victory.loop = false;
+    victory.loop = true;
     void victory.play().catch(() => {
       // Keep certificate scene silent if autoplay is blocked.
     });
