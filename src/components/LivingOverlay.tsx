@@ -30,6 +30,27 @@ interface GifMadnessOverlay {
   animationSeed: number;
 }
 
+interface ChaosSmear {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  opacity: number;
+  rotation: number;
+  hue: number;
+  expiresAt: number;
+}
+
+interface ChaosWarningPing {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+  opacity: number;
+  expiresAt: number;
+}
+
 const ribbonCopy: Record<OverlayMode, string[]> = {
   tour: [
     'SYSTEM ALERT: your choices are being quality-scored for regret output',
@@ -120,6 +141,8 @@ export function LivingOverlay({
   const [bannerIndex, setBannerIndex] = useState(0);
   const [fractureNotices, setFractureNotices] = useState<Array<{ id: string; left: string; top: string; text: string }>>([]);
   const [gifOverlays, setGifOverlays] = useState<GifMadnessOverlay[]>([]);
+  const [chaosSmears, setChaosSmears] = useState<ChaosSmear[]>([]);
+  const [warningPings, setWarningPings] = useState<ChaosWarningPing[]>([]);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const overlayRef = useRef<HTMLDivElement | null>(null);
 
@@ -135,6 +158,40 @@ export function LivingOverlay({
     : config;
   const ribbons = ribbonCopy[mode];
   const telemetry = telemetryCopy[mode];
+
+  const pickChaosAnchor = useCallback(() => {
+    const rootRect = overlayRef.current?.getBoundingClientRect();
+    if (!rootRect) return null;
+    const edgePadding = 12;
+    const selector = gifMadnessConfig.targetSelectors.join(',');
+    const candidates = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(node => {
+      if (overlayRef.current?.contains(node)) return false;
+      const style = window.getComputedStyle(node);
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) < 0.08) return false;
+      const rect = node.getBoundingClientRect();
+      if (rect.width < 20 || rect.height < 14) return false;
+      const outside =
+        rect.right < rootRect.left ||
+        rect.left > rootRect.right ||
+        rect.bottom < rootRect.top ||
+        rect.top > rootRect.bottom;
+      return !outside;
+    });
+
+    if (candidates.length > 0) {
+      const target = candidates[Math.floor(Math.random() * candidates.length)];
+      const rect = target.getBoundingClientRect();
+      return {
+        x: clamp(rect.left - rootRect.left + rect.width * randomInRange(0.1, 0.9), edgePadding, rootRect.width - edgePadding),
+        y: clamp(rect.top - rootRect.top + rect.height * randomInRange(0.1, 0.9), edgePadding, rootRect.height - edgePadding),
+      };
+    }
+
+    return {
+      x: randomInRange(edgePadding, Math.max(edgePadding, rootRect.width - edgePadding)),
+      y: randomInRange(edgePadding, Math.max(edgePadding, rootRect.height - edgePadding)),
+    };
+  }, []);
 
   const buildGifOverlay = useCallback((now: number, mobile: boolean): GifMadnessOverlay => {
     const src = pickWeightedGifAsset();
@@ -286,6 +343,84 @@ export function LivingOverlay({
   }, [buildGifOverlay, isMaximum, prefersReducedMotion]);
 
   useEffect(() => {
+    if (!isMaximum || prefersReducedMotion) {
+      setChaosSmears([]);
+      setWarningPings([]);
+      return;
+    }
+
+    const labels = ['ALERT', 'JITTER', 'OVERRUN', 'DESYNC', 'NOISE', 'SPIKE', 'REROUTE'];
+    let timeoutId: number | undefined;
+
+    const prune = window.setInterval(() => {
+      const now = Date.now();
+      setChaosSmears(prev => prev.filter(item => item.expiresAt > now));
+      setWarningPings(prev => prev.filter(item => item.expiresAt > now));
+    }, 260);
+
+    const schedule = () => {
+      const pulseWeight = Math.min(0.28, eventPulse * 0.0038);
+      const delay = randomIntInRange(440, 920);
+      timeoutId = window.setTimeout(() => {
+        const now = Date.now();
+        const isMobile = window.matchMedia('(max-width: 768px)').matches;
+        const smearCap = isMobile ? 14 : 22;
+        const pingCap = isMobile ? 10 : 16;
+        const smearCount = 1 + (Math.random() < 0.52 + pulseWeight ? 1 : 0);
+
+        setChaosSmears(prev => {
+          const alive = prev.filter(item => item.expiresAt > now);
+          const next = [...alive];
+          for (let index = 0; index < smearCount; index += 1) {
+            const anchor = pickChaosAnchor();
+            if (!anchor) continue;
+            next.push({
+              id: `smear-${now}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+              x: anchor.x + randomInRange(-24, 24),
+              y: anchor.y + randomInRange(-18, 18),
+              w: randomInRange(isMobile ? 36 : 52, isMobile ? 120 : 180),
+              h: randomInRange(isMobile ? 14 : 18, isMobile ? 42 : 64),
+              opacity: randomInRange(0.22, 0.58),
+              rotation: randomInRange(-24, 24),
+              hue: randomInRange(-24, 24),
+              expiresAt: now + randomIntInRange(900, 2200),
+            });
+          }
+          return next.slice(-smearCap);
+        });
+
+        if (Math.random() < 0.48 + pulseWeight) {
+          const anchor = pickChaosAnchor();
+          if (anchor) {
+            setWarningPings(prev => {
+              const alive = prev.filter(item => item.expiresAt > now);
+              const next = [
+                ...alive,
+                {
+                  id: `ping-${now}-${Math.random().toString(36).slice(2, 6)}`,
+                  x: anchor.x + randomInRange(-18, 18),
+                  y: anchor.y + randomInRange(-14, 14),
+                  text: labels[Math.floor(Math.random() * labels.length)] || 'ALERT',
+                  opacity: randomInRange(0.54, 0.96),
+                  expiresAt: now + randomIntInRange(1200, 2300),
+                },
+              ];
+              return next.slice(-pingCap);
+            });
+          }
+        }
+        schedule();
+      }, delay);
+    };
+
+    schedule();
+    return () => {
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      window.clearInterval(prune);
+    };
+  }, [eventPulse, isMaximum, pickChaosAnchor, prefersReducedMotion]);
+
+  useEffect(() => {
     if (!isMaximum) {
       setFractureNotices([]);
       return;
@@ -381,6 +516,40 @@ export function LivingOverlay({
           />
         ))}
       </div>
+
+      {isMaximum && !prefersReducedMotion && (
+        <>
+          <div className="living-overlay-chaos-smear-field" aria-hidden>
+            {chaosSmears.map(smear => (
+              <span
+                key={smear.id}
+                className="living-overlay-chaos-smear"
+                style={{
+                  left: `${smear.x}px`,
+                  top: `${smear.y}px`,
+                  width: `${smear.w}px`,
+                  height: `${smear.h}px`,
+                  opacity: smear.opacity,
+                  transform: `translate(-50%, -50%) rotate(${smear.rotation}deg)`,
+                  filter: `hue-rotate(${smear.hue}deg) blur(0.6px)`,
+                }}
+              />
+            ))}
+          </div>
+
+          <div className="living-overlay-warning-pings" aria-hidden>
+            {warningPings.map(ping => (
+              <span
+                key={ping.id}
+                className="living-overlay-warning-ping"
+                style={{ left: `${ping.x}px`, top: `${ping.y}px`, opacity: ping.opacity }}
+              >
+                ! {ping.text}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
 
       {isMaximum && !prefersReducedMotion && (
         <div className="living-overlay-gif-field" aria-hidden>

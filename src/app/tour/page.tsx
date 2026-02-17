@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { TopNav, SideNav, FooterNav, FloatingWidget } from '@/components/Navigation';
 import { PopupManager } from '@/components/Popups';
@@ -61,6 +61,30 @@ interface MinigameStat {
 }
 
 type CursorPersona = 'pointer' | 'text' | 'wait' | 'not-allowed' | 'crosshair';
+type ChaosContractType = 'clean-run' | 'speed-window' | 'steady-hand' | 'minigame-discipline';
+
+interface ChaosContract {
+  id: string;
+  type: ChaosContractType;
+  label: string;
+  description: string;
+  speedWindowMs?: number;
+}
+
+interface ChaosContractFeedback {
+  id: string;
+  success: boolean;
+  text: string;
+}
+
+interface CursorChaosTelemetry {
+  trailNodesSpawned: number;
+  decoyActivations: number;
+  clickOffsetInterventions: number;
+  remapActiveControls: number;
+  remapScannedControls: number;
+  remapPeakActiveControls: number;
+}
 
 interface TourRunState {
   step: number;
@@ -76,6 +100,18 @@ interface TourRunState {
   lastEventAt: number;
   hardRegressions: number;
   phaseStats: Record<1 | 2 | 3, { attempts: number; events: number; regressions: number }>;
+  skillChaos: {
+    combo: number;
+    peakCombo: number;
+    chaosScore: number;
+    chaosTokens: number;
+    tokensConsumed: number;
+    activeContract: ChaosContract | null;
+    contractStartedAt: number;
+    contractsCompleted: number;
+    contractsFailed: number;
+    lastComboAt: number;
+  };
   interactionState: {
     cursorMode: 'normal' | 'trapped' | 'relaxed';
     cursorHotspotOffset: number;
@@ -119,6 +155,12 @@ type TourAction =
   | { type: 'ADD_STRIKE'; count?: number }
   | { type: 'REGISTER_MINIGAME_FAIL'; gameId: MinigameId }
   | { type: 'REGISTER_MINIGAME_PASS'; gameId: MinigameId }
+  | { type: 'SET_ACTIVE_CONTRACT'; contract: ChaosContract; startedAt: number }
+  | { type: 'RESOLVE_CONTRACT'; success: boolean; now: number }
+  | { type: 'DECAY_CHAOS_COMBO'; now: number }
+  | { type: 'CONSUME_CHAOS_TOKEN' }
+  | { type: 'GRANT_CHAOS_TOKEN'; count?: number }
+  | { type: 'ADD_INSTABILITY'; amount?: number }
   | { type: 'APPLY_LOADING_METRICS'; metrics: LoadingLabyrinthMetrics }
   | { type: 'APPLY_EVENT'; event: TourEvent; phase: 1 | 2 | 3; now: number; lockoutMs: number; freezeMs: number };
 
@@ -126,6 +168,47 @@ const MAX_HARD_REGRESSIONS = 3;
 const PITY_PASS_TRIGGER = 4;
 const CATASTROPHIC_COOLDOWN_MS = 12000;
 const EFFECTIVE_PHASE: 1 | 2 | 3 = 3;
+const speedWindowDefaultMs = 11000;
+const speedWindowPityMs = 14000;
+
+function createChaosContract(step: number, question: TourQuestion | undefined, roll: number): ChaosContract {
+  const contractTypes: ChaosContractType[] =
+    question?.type === 'minigame'
+      ? ['minigame-discipline', 'clean-run', 'speed-window', 'steady-hand']
+      : ['clean-run', 'speed-window', 'steady-hand'];
+  const selected = contractTypes[Math.floor(roll * contractTypes.length)] || 'clean-run';
+  if (selected === 'speed-window') {
+    return {
+      id: `contract-${step}-speed-window`,
+      type: 'speed-window',
+      label: 'Speed Window',
+      description: 'Commit this step quickly before the timer window closes.',
+      speedWindowMs: speedWindowDefaultMs,
+    };
+  }
+  if (selected === 'steady-hand') {
+    return {
+      id: `contract-${step}-steady-hand`,
+      type: 'steady-hand',
+      label: 'Steady Hand',
+      description: 'Do not use Back actions during this step.',
+    };
+  }
+  if (selected === 'minigame-discipline') {
+    return {
+      id: `contract-${step}-minigame-discipline`,
+      type: 'minigame-discipline',
+      label: 'Minigame Discipline',
+      description: 'Clear this minigame with at most one fail.',
+    };
+  }
+  return {
+    id: `contract-${step}-clean-run`,
+    type: 'clean-run',
+    label: 'Clean Run',
+    description: 'Pass this step without any validation failures.',
+  };
+}
 
 function initialMinigameStats(): Record<MinigameId, MinigameStat> {
   return {
@@ -154,6 +237,18 @@ function createInitialRunState(): TourRunState {
       1: { attempts: 0, events: 0, regressions: 0 },
       2: { attempts: 0, events: 0, regressions: 0 },
       3: { attempts: 0, events: 0, regressions: 0 },
+    },
+    skillChaos: {
+      combo: 0,
+      peakCombo: 0,
+      chaosScore: 0,
+      chaosTokens: 0,
+      tokensConsumed: 0,
+      activeContract: null,
+      contractStartedAt: 0,
+      contractsCompleted: 0,
+      contractsFailed: 0,
+      lastComboAt: 0,
     },
     interactionState: {
       cursorMode: 'normal',
@@ -304,6 +399,87 @@ function tourReducer(state: TourRunState, action: TourAction): TourRunState {
         },
       };
     }
+    case 'SET_ACTIVE_CONTRACT':
+      return {
+        ...state,
+        skillChaos: {
+          ...state.skillChaos,
+          activeContract: action.contract,
+          contractStartedAt: action.startedAt,
+        },
+      };
+    case 'RESOLVE_CONTRACT': {
+      if (!MAXIMUM_HOSTILITY.tour.skillChaos.enabled) return state;
+      if (action.success) {
+        const withinWindow = action.now - state.skillChaos.lastComboAt <= MAXIMUM_HOSTILITY.tour.skillChaos.comboWindowMs;
+        const combo = Math.min(
+          MAXIMUM_HOSTILITY.tour.skillChaos.maxCombo,
+          withinWindow ? state.skillChaos.combo + 1 : 1
+        );
+        return {
+          ...state,
+          skillChaos: {
+            ...state.skillChaos,
+            combo,
+            peakCombo: Math.max(state.skillChaos.peakCombo, combo),
+            chaosScore: state.skillChaos.chaosScore + MAXIMUM_HOSTILITY.tour.skillChaos.contractScoreReward,
+            chaosTokens: Math.min(
+              MAXIMUM_HOSTILITY.tour.skillChaos.contractRewardTokenCap,
+              state.skillChaos.chaosTokens + 1
+            ),
+            contractsCompleted: state.skillChaos.contractsCompleted + 1,
+            lastComboAt: action.now,
+          },
+        };
+      }
+      return {
+        ...state,
+        suspicion: Math.min(100, state.suspicion + MAXIMUM_HOSTILITY.tour.skillChaos.contractSuspicionPenalty),
+        skillChaos: {
+          ...state.skillChaos,
+          combo: 0,
+          contractsFailed: state.skillChaos.contractsFailed + 1,
+        },
+      };
+    }
+    case 'DECAY_CHAOS_COMBO': {
+      if (state.skillChaos.combo <= 0) return state;
+      if (action.now - state.skillChaos.lastComboAt < MAXIMUM_HOSTILITY.tour.skillChaos.comboDecayMs) return state;
+      return {
+        ...state,
+        skillChaos: {
+          ...state.skillChaos,
+          combo: Math.max(0, state.skillChaos.combo - 1),
+          lastComboAt: action.now,
+        },
+      };
+    }
+    case 'CONSUME_CHAOS_TOKEN':
+      if (state.skillChaos.chaosTokens <= 0) return state;
+      return {
+        ...state,
+        skillChaos: {
+          ...state.skillChaos,
+          chaosTokens: Math.max(0, state.skillChaos.chaosTokens - 1),
+          tokensConsumed: state.skillChaos.tokensConsumed + 1,
+        },
+      };
+    case 'GRANT_CHAOS_TOKEN':
+      return {
+        ...state,
+        skillChaos: {
+          ...state.skillChaos,
+          chaosTokens: Math.min(
+            MAXIMUM_HOSTILITY.tour.skillChaos.contractRewardTokenCap,
+            state.skillChaos.chaosTokens + (action.count || 1)
+          ),
+        },
+      };
+    case 'ADD_INSTABILITY':
+      return {
+        ...state,
+        instability: Math.min(100, state.instability + (action.amount || 1)),
+      };
     case 'APPLY_LOADING_METRICS':
       return {
         ...state,
@@ -461,12 +637,26 @@ function TourContent() {
   const [skinPulseModule, setSkinPulseModule] = useState<SkinModule | null>(null);
   const [pulseState, setPulseState] = useState(initialResonancePulseState);
   const [feed, setFeed] = useState<string[]>(['Hostility engine armed.', 'Route entropy rising.']);
+  const [contractFeedback, setContractFeedback] = useState<ChaosContractFeedback | null>(null);
+  const [cursorChaosTelemetry, setCursorChaosTelemetry] = useState<CursorChaosTelemetry>({
+    trailNodesSpawned: 0,
+    decoyActivations: 0,
+    clickOffsetInterventions: 0,
+    remapActiveControls: 0,
+    remapScannedControls: 0,
+    remapPeakActiveControls: 0,
+  });
+  const backAttemptsThisStepRef = useRef(0);
+  const minigameFailsThisStepRef = useRef(0);
+  const validationFailedThisStepRef = useRef(false);
+  const contractResolvedThisStepRef = useRef(false);
 
   const exhibitParam = searchParams.get('exhibit');
   const currentQuestion = getQuestionByNumber(runState.step);
   const phase = EFFECTIVE_PHASE;
   const attemptsOnCurrentStep = runState.attempts[runState.step] || 0;
   const pityPass = attemptsOnCurrentStep >= PITY_PASS_TRIGGER;
+  const currentContract = runState.skillChaos.activeContract;
   const skinMap = runState.interactionState.activeSkinMap;
   const minigamePasses = useMemo(
     () =>
@@ -474,6 +664,7 @@ function TourContent() {
     [runState.interactionState.minigameStats]
   );
   const resonanceIntensity = MAXIMUM_HOSTILITY.visual.resonanceIntensity;
+  const cursorPresentation = MAXIMUM_HOSTILITY.primitives.cursorPresentation;
   const resonanceSafeZones = useMemo(
     () => [
       { x: 14, y: 24, w: 72, h: 45 },
@@ -496,12 +687,47 @@ function TourContent() {
     return () => clearInterval(timer);
   }, [started]);
 
+  useEffect(() => {
+    if (!started || !MAXIMUM_HOSTILITY.tour.skillChaos.enabled || runState.skillChaos.combo <= 0) return;
+    const timer = window.setInterval(() => {
+      dispatch({ type: 'DECAY_CHAOS_COMBO', now: Date.now() });
+    }, 1300);
+    return () => window.clearInterval(timer);
+  }, [runState.skillChaos.combo, started]);
+
+  useEffect(() => {
+    if (!contractFeedback) return;
+    const timer = window.setTimeout(() => setContractFeedback(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [contractFeedback]);
+
   const pushFeed = useCallback((line: string) => {
     setFeed(prev => [line, ...prev].slice(0, 8));
   }, []);
 
   const pushPulse = useCallback((kind: 'event' | 'cursor' | 'loading' | 'minigame' | 'mutation', strength: number) => {
     setPulseState(prev => emitPulse(prev, kind, strength));
+  }, []);
+
+  const handleCursorMetrics = useCallback(
+    (metrics: { trailNodesSpawned: number; decoyActivations: number; clickOffsetInterventions: number }) => {
+      setCursorChaosTelemetry(prev => ({
+        ...prev,
+        trailNodesSpawned: metrics.trailNodesSpawned,
+        decoyActivations: metrics.decoyActivations,
+        clickOffsetInterventions: metrics.clickOffsetInterventions,
+      }));
+    },
+    []
+  );
+
+  const handleCursorRemapStatus = useCallback((status: { active: number; scanned: number }) => {
+    setCursorChaosTelemetry(prev => ({
+      ...prev,
+      remapActiveControls: status.active,
+      remapScannedControls: status.scanned,
+      remapPeakActiveControls: Math.max(prev.remapPeakActiveControls, status.active),
+    }));
   }, []);
 
   const triggerSkinMutation = useCallback(
@@ -553,11 +779,29 @@ function TourContent() {
     },
     [runState.attempts, runState.eventSeed, runState.step, runState.strikes]
   );
+
+  const contractRoll = useMemo(() => {
+    const value = Math.sin(runState.eventSeed + runState.step * 173 + 91) * 10000;
+    return value - Math.floor(value);
+  }, [runState.eventSeed, runState.step]);
+
+  useEffect(() => {
+    if (!started || !MAXIMUM_HOSTILITY.tour.skillChaos.enabled) return;
+    const contract = createChaosContract(runState.step, currentQuestion, contractRoll);
+    dispatch({ type: 'SET_ACTIVE_CONTRACT', contract, startedAt: Date.now() });
+    backAttemptsThisStepRef.current = 0;
+    minigameFailsThisStepRef.current = 0;
+    validationFailedThisStepRef.current = false;
+    contractResolvedThisStepRef.current = false;
+    setContractFeedback(null);
+  }, [contractRoll, currentQuestion, runState.step, started]);
+
   const startTour = () => {
     const seed = Math.floor(Math.random() * 999999);
     setStarted(true);
     setAnswers({});
     setError(null);
+    setContractFeedback(null);
     setPulseState(initialResonancePulseState);
     setFeed([`Session started with seed ${seed}.`, exhibitParam ? `Prefetch hint: ${exhibitParam}` : 'No prefetch hint.']);
     dispatch({ type: 'RESET', seed, startedAt: Date.now() });
@@ -567,6 +811,34 @@ function TourContent() {
     (event: TourEvent, eventPhase: 1 | 2 | 3, mercy: boolean, attemptBoost = 0): boolean => {
       if (mercy && (event.effect === 'regress' || event.effect === 'lockout' || event.effect === 'freeze')) {
         pushFeed(`Mercy protocol blocked ${event.id}.`);
+        return false;
+      }
+      const catastrophic = event.effect === 'regress' || event.effect === 'lockout' || event.effect === 'freeze';
+      if (
+        !mercy &&
+        catastrophic &&
+        MAXIMUM_HOSTILITY.tour.skillChaos.enabled &&
+        runState.skillChaos.chaosTokens > 0 &&
+        MAXIMUM_HOSTILITY.tour.skillChaos.catastrophicTokenDowngradeEffect === 'instability'
+      ) {
+        dispatch({ type: 'CONSUME_CHAOS_TOKEN' });
+        const now = Date.now();
+        const downgraded: TourEvent = {
+          ...event,
+          effect: 'instability',
+          copy: `${event.copy} Chaos token absorbed catastrophic impact.`,
+        };
+        dispatch({
+          type: 'APPLY_EVENT',
+          event: downgraded,
+          phase: eventPhase,
+          now,
+          lockoutMs: 0,
+          freezeMs: 0,
+        });
+        setError('Chaos token consumed. Catastrophe downgraded to instability.');
+        pushFeed(`Token shield intercepted ${event.id}.`);
+        pushPulse('event', 0.76);
         return false;
       }
       const now = Date.now();
@@ -601,7 +873,7 @@ function TourContent() {
       if (event.effect === 'strike') setError(event.copy);
       return false;
     },
-    [pushFeed, pushPulse, seeded, triggerSkinMutation]
+    [pushFeed, pushPulse, runState.skillChaos.chaosTokens, seeded, triggerSkinMutation]
   );
 
   useEffect(() => {
@@ -722,6 +994,43 @@ function TourContent() {
     return true;
   };
 
+  const resolveChaosContract = useCallback(
+    (question: TourQuestion, attemptCount: number) => {
+      if (!MAXIMUM_HOSTILITY.tour.skillChaos.enabled || !currentContract || contractResolvedThisStepRef.current) return;
+      let success = true;
+      if (currentContract.type === 'clean-run') {
+        success = !validationFailedThisStepRef.current;
+      } else if (currentContract.type === 'speed-window') {
+        const windowMs = attemptCount >= PITY_PASS_TRIGGER ? speedWindowPityMs : currentContract.speedWindowMs || speedWindowDefaultMs;
+        success = Date.now() - runState.skillChaos.contractStartedAt <= windowMs;
+      } else if (currentContract.type === 'steady-hand') {
+        success = backAttemptsThisStepRef.current === 0;
+      } else if (currentContract.type === 'minigame-discipline') {
+        success = question.type === 'minigame' ? minigameFailsThisStepRef.current <= 1 : true;
+      }
+
+      dispatch({ type: 'RESOLVE_CONTRACT', success, now: Date.now() });
+      contractResolvedThisStepRef.current = true;
+
+      if (success) {
+        pushFeed(`Contract complete: ${currentContract.label}. Chaos score increased.`);
+        setContractFeedback({
+          id: `contract-success-${Date.now()}`,
+          success: true,
+          text: `Contract cleared: ${currentContract.label}`,
+        });
+        return;
+      }
+      pushFeed(`Contract failed: ${currentContract.label}. Suspicion increased.`);
+      setContractFeedback({
+        id: `contract-fail-${Date.now()}`,
+        success: false,
+        text: `Contract failed: ${currentContract.label}`,
+      });
+    },
+    [currentContract, pushFeed, runState.skillChaos.contractStartedAt]
+  );
+
   const handleMinigamePass = useCallback(
     (gameId: MinigameId, meta: Record<string, number>) => {
       if (!currentQuestion || currentQuestion.minigameId !== gameId) return;
@@ -738,6 +1047,7 @@ function TourContent() {
   const handleMinigameFail = useCallback(
     (gameId: MinigameId) => {
       if (!currentQuestion || currentQuestion.minigameId !== gameId) return;
+      minigameFailsThisStepRef.current += 1;
       const failCount = runState.interactionState.minigameStats[gameId].fails + 1;
       dispatch({ type: 'REGISTER_MINIGAME_FAIL', gameId });
       dispatch({ type: 'ADD_STRIKE' });
@@ -767,6 +1077,7 @@ function TourContent() {
       return;
     }
 
+    backAttemptsThisStepRef.current += 1;
     setBackClicks(prev => prev + 1);
     if (runState.step <= 1) return;
 
@@ -814,6 +1125,9 @@ function TourContent() {
           ghostBursts: runState.interactionState.cursorGhostBursts,
           cursorMode: runState.interactionState.cursorMode,
           cursorOffset: runState.interactionState.cursorHotspotOffset,
+          trailNodesSpawned: cursorChaosTelemetry.trailNodesSpawned,
+          decoyActivations: cursorChaosTelemetry.decoyActivations,
+          clickOffsetInterventions: cursorChaosTelemetry.clickOffsetInterventions,
         },
         loadingMetrics: {
           loops: runState.interactionState.loadingLoops,
@@ -829,6 +1143,14 @@ function TourContent() {
         minigameMetrics: {
           stats: runState.interactionState.minigameStats,
           interruptions: runState.interactionState.minigameInterruptions,
+        },
+        skillChaosMetrics: {
+          contractsCompleted: runState.skillChaos.contractsCompleted,
+          contractsFailed: runState.skillChaos.contractsFailed,
+          peakCombo: runState.skillChaos.peakCombo,
+          chaosScore: runState.skillChaos.chaosScore,
+          tokensConsumed: runState.skillChaos.tokensConsumed,
+          tokensBanked: runState.skillChaos.chaosTokens,
         },
         interactionState: {
           cursorMode: runState.interactionState.cursorMode,
@@ -865,6 +1187,15 @@ function TourContent() {
     setFocusArmSignal(now + EFFECTIVE_PHASE + attemptCount);
     triggerSkinMutation('submit');
 
+    if (
+      MAXIMUM_HOSTILITY.tour.skillChaos.enabled &&
+      attemptCount === MAXIMUM_HOSTILITY.tour.skillChaos.autoTokenAtPityAttempt &&
+      runState.skillChaos.chaosTokens < MAXIMUM_HOSTILITY.tour.skillChaos.contractRewardTokenCap
+    ) {
+      dispatch({ type: 'GRANT_CHAOS_TOKEN', count: 1 });
+      pushFeed('Pity threshold reached: chaos token granted.');
+    }
+
     const beforeValidateEvent = scheduleTourEventMaximum({
       trigger: 'before-validate',
       now,
@@ -876,6 +1207,7 @@ function TourContent() {
     if (beforeValidateEvent && applyEvent(beforeValidateEvent, EFFECTIVE_PHASE, mercy, 1)) return;
 
     if (!validateStep(currentQuestion, mercy)) {
+      validationFailedThisStepRef.current = true;
       if (mercy && runState.recoveryTokens > 0) {
         dispatch({ type: 'CONSUME_RECOVERY' });
         pushFeed('Recovery token consumed after repeated failure.');
@@ -912,6 +1244,8 @@ function TourContent() {
       return;
     }
 
+    resolveChaosContract(currentQuestion, attemptCount);
+
     if (runState.step >= totalQuestions) {
       completeTour();
       return;
@@ -934,6 +1268,7 @@ function TourContent() {
 
   const lockoutMs = Math.max(0, runState.lockouts.nextUntil - nowTick);
   const freezeMs = Math.max(0, runState.debuffs.uiFreezeUntil - nowTick);
+  const contractElapsedMs = Math.max(0, nowTick - runState.skillChaos.contractStartedAt);
 
   if (!started) {
     return (
@@ -1002,6 +1337,7 @@ function TourContent() {
                 runState.interactionState.loadingLoops
               }
               onIncident={pushFeed}
+              onMetrics={handleCursorMetrics}
             />
             <TargetedCursorLayer
               phase={EFFECTIVE_PHASE}
@@ -1011,6 +1347,7 @@ function TourContent() {
               offsetBoost={runState.interactionState.cursorHotspotOffset}
               chanceBoost={runState.interactionState.cursorMode === 'trapped' ? 0.08 : 0}
               onIncident={pushFeed}
+              onRemapStatus={handleCursorRemapStatus}
             />
             <FocusSaboteur
               phase={EFFECTIVE_PHASE}
@@ -1105,6 +1442,29 @@ function TourContent() {
                   loadingRegressions={runState.interactionState.loadingRegressions}
                   minigamePasses={minigamePasses}
                 />
+                {currentContract && (
+                  <div className={`res-control-safe min-h-[86px] mt-3 mb-3 p-3 bg-[#FFF6B8] border-2 border-dashed border-[#8B4513] ${getSkinClass(skinMap.modals)} ${skinPulseModule === 'modals' ? getSkinPulseClass(skinMap.modals) : ''}`}>
+                    <p className="text-[11px] font-bold" style={{ fontFamily: "'Bangers', cursive" }}>
+                      ACTIVE CHAOS CONTRACT
+                    </p>
+                    <p className="text-[12px]" style={{ fontFamily: "'Comic Neue', cursive" }}>
+                      {currentContract.label}: {currentContract.description}
+                    </p>
+                    {currentContract.type === 'speed-window' && (
+                      <p className="text-[10px]" style={{ fontFamily: "'VT323', monospace" }}>
+                        Time left: {Math.max(0, Math.ceil(((pityPass ? speedWindowPityMs : currentContract.speedWindowMs || speedWindowDefaultMs) - contractElapsedMs) / 1000))}s
+                      </p>
+                    )}
+                    {contractFeedback && (
+                      <p
+                        className={`text-[10px] mt-1 ${contractFeedback.success ? 'text-[#0d5c2e]' : 'text-[#8b1a1a]'}`}
+                        style={{ fontFamily: "'VT323', monospace" }}
+                      >
+                        {contractFeedback.success ? '✔' : '✖'} {contractFeedback.text}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {currentQuestion && (
                   <QuestionCard
                     className={`${getSkinClass(skinMap['question-card'])} ${skinPulseModule === 'question-card' ? getSkinPulseClass(skinMap['question-card']) : ''}`}
@@ -1173,6 +1533,13 @@ function TourContent() {
                   <p className="text-[11px] mt-1" style={{ fontFamily: "'VT323', monospace" }}>Attempts on current step: {attemptsOnCurrentStep}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Pity pass: {pityPass ? 'ACTIVE' : `at ${PITY_PASS_TRIGGER} attempts`}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Recovery tokens: {runState.recoveryTokens}</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Chaos combo: x{runState.skillChaos.combo} (peak x{runState.skillChaos.peakCombo})</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Chaos score: {runState.skillChaos.chaosScore} | Tokens: {runState.skillChaos.chaosTokens}</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Contracts: {runState.skillChaos.contractsCompleted}W / {runState.skillChaos.contractsFailed}L</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Cursor profile: {cursorPresentation.nativeCursorPolicy} / {cursorPresentation.trailPointerStyle}</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Remap status: {cursorChaosTelemetry.remapActiveControls}/{Math.max(cursorChaosTelemetry.remapScannedControls, 1)} controls</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Trail nodes: {cursorChaosTelemetry.trailNodesSpawned} | Decoys: {cursorChaosTelemetry.decoyActivations}</p>
+                  <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Click offsets: {cursorChaosTelemetry.clickOffsetInterventions}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Cursor persona swaps: {runState.interactionState.cursorPersonaSwaps}</p>
                   <p className="text-[11px]" style={{ fontFamily: "'VT323', monospace" }}>Loading debt: {runState.interactionState.loadingDebt}</p>
                 </div>

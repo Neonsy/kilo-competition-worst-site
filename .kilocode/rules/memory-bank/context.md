@@ -205,6 +205,21 @@ A deliberately awful website that masquerades as an interactive museum of terrib
   - Extended `MAXIMUM_HOSTILITY.overlay` with `gifMadness` config (asset weights, spawn cadence, burst behavior, size/opacity/rotation ranges, anchor selectors, desktop/mobile caps)
   - Extended `LivingOverlay` with randomized max-mode GIF overlays anchored to random visible UI targets and fallback dead-space placement
   - Added non-blocking GIF overlay CSS in `globals.css` with blend/noise styling and reduced-motion disable path
+- [x] Cursor visibility chaos + skill-chaos expansion pass:
+  - Reworked global cursor corruption from always-hidden native cursor to mostly-visible mode with brief hide bursts (`cursor-corruption-hide-brief`) during desync windows
+  - Added 3-second blur trailer nodes + smear streaks + burst flash artifacts in `CursorCorruptionLayer` with desktop/mobile caps and reduced-motion suppression
+  - Added global heavy ambient chaos to `LivingOverlay` via non-blocking chromatic smear fields and warning pings tied to runtime pulse pressure
+  - Extended tour state with `skillChaos` contracts/combo/score/token metrics and added token-based catastrophic event downgrade to instability
+  - Added active contract panel + combo telemetry in tour UI and persisted `skillChaosMetrics` into certificate diagnostics with backward-compatible optional rendering
+- [x] Real-pointer trail + critical-control cursor corruption hardening pass:
+  - Reworked `CursorCorruptionLayer` to render pointer-sprite trails/ghosts/primary cursor using inline SVG data-URI variants (`pointer/text/wait/not-allowed/crosshair`)
+  - Added 3s real-pointer trail overlap confusion with per-node scale/rotation, desktop-only live decoy pointer activations during desync, and trap-zone click offset interventions
+  - Added periodic critical-control remap loop in `TargetedCursorLayer` for `[data-trap-zone]` interactives (`wait/not-allowed/progress/crosshair`) with config-driven cadence/chance
+  - Extended tour and certificate diagnostics with optional cursor chaos metrics (`trailNodesSpawned`, `decoyActivations`, `clickOffsetInterventions`) and live remap telemetry panel lines
+- [x] Cursor hard-visibility pass + gate text cleanup:
+  - Removed `gate rev: v7` text from both `GlobalGlitchGate` primary and failsafe cards
+  - Switched desktop corruption policy to hide native cursor whenever `cursor-corruption-active` is present (non-reduced-motion only)
+  - Raised cursor corruption layer priority and changed pointer sprite compositing to `mix-blend-mode: normal` so custom pointers remain visually dominant over effect noise
 
 ## Current Structure
 
@@ -289,3 +304,6 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | 2026-02-17 | Added explicit click-to-enter orchestrator and refactored gate/audio startup to begin from that single gesture: deterministic center loader card rendering, entry-confirmed media priming, and maintained pointermove-free unlock behavior |
 | 2026-02-17 | Hardened entry sequencing and audio start contract: delayed full app mount until gate release, added explicit gate lifecycle state, enforced strict post-release queue/SFX start checks, upgraded entry screen to animated-readable class-based UI, and strengthened gate fallback-card visibility behavior |
 | 2026-02-17 | Added aggressive-lite GIF madness overlays across all LivingOverlay routes by moving GIF assets into `public/media/hostility/gifs`, adding weighted max-mode spawn config, and wiring non-blocking randomized UI-anchored GIF overlays with reduced-motion disable support |
+| 2026-02-17 | Implemented cursor visibility chaos + tour skill-chaos expansion: native cursor now mostly visible with brief hide bursts, 3s blur trailers/smears/flashes, global ambient smear+warning overlay layers, and tour Chaos Contracts with combo/score/tokens plus certificate metrics |
+| 2026-02-17 | Implemented real-pointer cursor trail pass: pointer-sprite trail/ghost rendering, live desync decoy pointer, trap-zone click-offset interventions, periodic critical-control cursor remaps, and optional persisted cursor chaos counters in tour/certificate diagnostics |
+| 2026-02-17 | Removed gate revision copy from loader cards and enforced desktop non-reduced-motion native-cursor hiding under active corruption, with higher-priority normal-blend custom pointer rendering for stronger cursor confusion |

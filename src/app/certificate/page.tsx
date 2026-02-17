@@ -48,6 +48,9 @@ interface TourResults {
       ghostBursts: number;
       cursorMode: string;
       cursorOffset: number;
+      trailNodesSpawned?: number;
+      decoyActivations?: number;
+      clickOffsetInterventions?: number;
     };
     loadingMetrics?: {
       loops: number;
@@ -63,6 +66,14 @@ interface TourResults {
     minigameMetrics?: {
       stats: Record<string, { fails: number; passes: number; passed: boolean }>;
       interruptions: number;
+    };
+    skillChaosMetrics?: {
+      contractsCompleted: number;
+      contractsFailed: number;
+      peakCombo: number;
+      chaosScore: number;
+      tokensConsumed: number;
+      tokensBanked?: number;
     };
     interactionState?: {
       cursorMode: string;
@@ -401,6 +412,9 @@ export default function CertificatePage() {
                   {results.runStats.cursorMetrics && (
                     <p className="text-center text-xs mt-1" style={{ fontFamily: "'VT323', monospace" }}>
                       Cursor swaps: {results.runStats.cursorMetrics.personaSwaps} | Desync bursts: {results.runStats.cursorMetrics.desyncTriggers} | Ghost bursts: {results.runStats.cursorMetrics.ghostBursts}
+                      {typeof results.runStats.cursorMetrics.trailNodesSpawned === 'number' && ` | Trail nodes: ${results.runStats.cursorMetrics.trailNodesSpawned}`}
+                      {typeof results.runStats.cursorMetrics.decoyActivations === 'number' && ` | Decoys: ${results.runStats.cursorMetrics.decoyActivations}`}
+                      {typeof results.runStats.cursorMetrics.clickOffsetInterventions === 'number' && ` | Click offsets: ${results.runStats.cursorMetrics.clickOffsetInterventions}`}
                     </p>
                   )}
                   {results.runStats.loadingMetrics && (
@@ -416,6 +430,11 @@ export default function CertificatePage() {
                   {results.runStats.minigameMetrics && (
                     <p className="text-center text-xs mt-1" style={{ fontFamily: "'VT323', monospace" }}>
                       Minigame interruptions: {results.runStats.minigameMetrics.interruptions} | Required games cleared: {Object.values(results.runStats.minigameMetrics.stats).filter(item => item.passed).length}/3
+                    </p>
+                  )}
+                  {results.runStats.skillChaosMetrics && (
+                    <p className="text-center text-xs mt-1" style={{ fontFamily: "'VT323', monospace" }}>
+                      Chaos contracts: {results.runStats.skillChaosMetrics.contractsCompleted} complete / {results.runStats.skillChaosMetrics.contractsFailed} failed | Peak combo: x{results.runStats.skillChaosMetrics.peakCombo} | Chaos score: {results.runStats.skillChaosMetrics.chaosScore} | Tokens consumed: {results.runStats.skillChaosMetrics.tokensConsumed}
                     </p>
                   )}
                 </div>

@@ -849,7 +849,6 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
       <div ref={coreCardRef} data-gate-core-card className="global-gate-card-chaos" style={CORE_PANEL_STYLE}>
         <div className="global-gate-topline" style={TOPLINE_STYLE}>
           <span className="global-gate-topline-spinner">{spinner}</span>
-          <span className="global-gate-topline-rev" style={{ color: "#bde2e6" }}>gate rev: v7</span>
           <span className="global-gate-topline-percent">{progressLabel}%</span>
         </div>
         <p className="global-gate-incident-badge" aria-hidden>{incidentBadge}</p>
@@ -882,11 +881,10 @@ export function GlobalGlitchGate({ armed, onReleased }: GlobalGlitchGateProps) {
       </div>
       {showFailsafeCard ? (
         <div data-gate-fallback-card className="global-gate-card-chaos" style={FAILSAFE_PANEL_STYLE}>
-          <div className="global-gate-topline" style={TOPLINE_STYLE}>
-            <span className="global-gate-topline-spinner">{spinner}</span>
-            <span className="global-gate-topline-rev" style={{ color: "#bde2e6" }}>gate rev: v7</span>
-            <span className="global-gate-topline-percent">{progressLabel}%</span>
-          </div>
+        <div className="global-gate-topline" style={TOPLINE_STYLE}>
+          <span className="global-gate-topline-spinner">{spinner}</span>
+          <span className="global-gate-topline-percent">{progressLabel}%</span>
+        </div>
           <p className="global-gate-incident-badge" aria-hidden>{incidentBadge}</p>
           <p className="global-gate-title" style={TITLE_STYLE}>Loading Bad Decisions</p>
           <div style={METER_STYLE}>

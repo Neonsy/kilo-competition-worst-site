@@ -8,7 +8,12 @@ interface CursorDecoyState {
   x: number;
   y: number;
   icon: string;
-  style: 'not-allowed' | 'wait' | 'progress';
+  style: 'not-allowed' | 'wait' | 'progress' | 'crosshair';
+}
+
+interface CursorRemapStatus {
+  active: number;
+  scanned: number;
 }
 
 interface TargetedCursorLayerProps {
@@ -19,10 +24,12 @@ interface TargetedCursorLayerProps {
   chanceBoost?: number;
   hostilityMode?: HostilityMode;
   onIncident?: (line: string) => void;
+  onRemapStatus?: (status: CursorRemapStatus) => void;
 }
 
 const DECOY_ICONS = ['⛔', '⌛', '🖱', '✖'];
-const CURSOR_STYLES: CursorDecoyState['style'][] = ['not-allowed', 'wait', 'progress'];
+const CURSOR_STYLES: CursorDecoyState['style'][] = ['not-allowed', 'wait', 'progress', 'crosshair'];
+const REMAP_STYLES: CursorDecoyState['style'][] = ['wait', 'not-allowed', 'progress', 'crosshair'];
 
 interface ZoneState {
   fails: number;
@@ -47,8 +54,10 @@ export function TargetedCursorLayer({
   chanceBoost = 0,
   hostilityMode = 'legacy',
   onIncident,
+  onRemapStatus,
 }: TargetedCursorLayerProps) {
   const zoneConfig = hostilityPrimitives.cursorTrapZones[0];
+  const cursorPresentation = hostilityPrimitives.cursorGlobalRules.presentation;
   const [decoy, setDecoy] = useState<CursorDecoyState>({
     visible: false,
     x: 0,
@@ -60,6 +69,7 @@ export function TargetedCursorLayer({
   const zoneStateMap = useRef(new WeakMap<HTMLElement, ZoneState>());
   const mobileBypassRef = useRef<WeakSet<HTMLElement>>(new WeakSet());
   const hideTimerRef = useRef<number | null>(null);
+  const remapTimerRef = useRef<number | null>(null);
 
   const effectivePhase: HostilityPhase = hostilityMode === 'maximum' ? 3 : phase;
   const trapChance = useMemo(
@@ -102,6 +112,7 @@ export function TargetedCursorLayer({
       el.classList.remove('cursor-trap-lag');
       el.style.removeProperty('--cursor-trap-offset-x');
       el.style.removeProperty('--cursor-trap-offset-y');
+      el.removeAttribute('data-cursor-trap-style');
     };
 
     const triggerTrap = (el: HTMLElement, clientX: number, clientY: number) => {
@@ -196,6 +207,60 @@ export function TargetedCursorLayer({
         .forEach(clearTrapClass);
     };
   }, [active, hotspotOffset, onIncident, trapChance, zoneConfig]);
+
+  useEffect(() => {
+    if (!active || hostilityMode !== 'maximum') {
+      onRemapStatus?.({ active: 0, scanned: 0 });
+      return;
+    }
+
+    let cancelled = false;
+    const selector =
+      '[data-trap-zone] button, [data-trap-zone] a, [data-trap-zone] input[type="submit"], [data-trap-zone] input[type="button"], [data-trap-zone] [role="button"]';
+
+    const clearRemaps = () => {
+      document
+        .querySelectorAll<HTMLElement>('[data-cursor-remap-style]')
+        .forEach(node => node.removeAttribute('data-cursor-remap-style'));
+    };
+
+    const runRemapTick = () => {
+      if (cancelled) return;
+      const controls = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(node => {
+        const style = window.getComputedStyle(node);
+        return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0.08;
+      });
+
+      let activeRemaps = 0;
+      controls.forEach(control => {
+        if (Math.random() < cursorPresentation.criticalControlRemapChance) {
+          const style = REMAP_STYLES[Math.floor(Math.random() * REMAP_STYLES.length)];
+          control.dataset.cursorRemapStyle = style;
+          activeRemaps += 1;
+          return;
+        }
+        control.removeAttribute('data-cursor-remap-style');
+      });
+      onRemapStatus?.({ active: activeRemaps, scanned: controls.length });
+
+      const nextDelay = randomInRange(
+        cursorPresentation.criticalControlRemapIntervalMs[0],
+        cursorPresentation.criticalControlRemapIntervalMs[1]
+      );
+      remapTimerRef.current = window.setTimeout(runRemapTick, nextDelay);
+    };
+
+    runRemapTick();
+    return () => {
+      cancelled = true;
+      if (remapTimerRef.current !== null) {
+        window.clearTimeout(remapTimerRef.current);
+        remapTimerRef.current = null;
+      }
+      clearRemaps();
+      onRemapStatus?.({ active: 0, scanned: 0 });
+    };
+  }, [active, cursorPresentation.criticalControlRemapChance, cursorPresentation.criticalControlRemapIntervalMs, hostilityMode, onRemapStatus]);
 
   if (!active) return null;
 

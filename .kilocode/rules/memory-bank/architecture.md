@@ -37,12 +37,12 @@ src/
 │   └── settings/page.tsx           # Meaningless settings page
 ├── components/
 │   ├── LivingOverlay.tsx           # Shared overlay engine for ribbons/ghosts/rifts + randomized GIF madness
-│   ├── CursorCorruptionLayer.tsx   # Global cursor corruption with personas/desync/ghost cursors
+│   ├── CursorCorruptionLayer.tsx   # Global cursor corruption with pointer-sprite trails/ghosts, desync decoys, and click-offset traps
 │   ├── LoadingLabyrinthButton.tsx  # Staged loop/regress/false-complete loading gate
 │   ├── BureaucracyQueue.tsx        # Required minigame A
 │   ├── MazeOfConsent.tsx           # Required minigame B
 │   ├── CaptchaGauntlet.tsx         # Required minigame C
-│   ├── TargetedCursorLayer.tsx     # Zone-targeted cursor traps + mobile tap delay
+│   ├── TargetedCursorLayer.tsx     # Zone-targeted cursor traps + periodic critical-control cursor remaps + mobile tap delay
 │   ├── FakeBrowserChrome.tsx       # Deceptive browser strip and fake control interruptions
 │   ├── FocusSaboteur.tsx           # Enter/focus nuisance layer with guardrails
 │   ├── ClipboardSaboteur.tsx       # Copy/paste perturbation with field safety valve
@@ -96,6 +96,22 @@ src/
   - fallback random dead-space placement when no anchors match
   - strict non-blocking rendering (`pointer-events: none`)
   - disabled under `prefers-reduced-motion: reduce`
+- `LivingOverlay.tsx` now also runs global heavy ambient chaos layers:
+  - chromatic smear field bursts (`living-overlay-chaos-smear-field`)
+  - warning ping chips (`living-overlay-warning-pings`)
+  - both are decorative, TTL-capped, and disabled under reduced motion
+- Cursor presentation runtime now uses `cursorGlobalRules.presentation`:
+  - native cursor remains visible by default
+  - desktop runtime now enforces `cursor: none` for `.cursor-corruption-active` in non-reduced-motion contexts so the synthetic cursor stack is the primary pointer
+  - short hide bursts are applied via `cursor-corruption-hide-brief` only during selected desync spikes
+  - cursor mayhem visuals use real pointer-sprite trails/ghosts/primary cursor variants with capped 3s trail lifetime and desync flash bursts
+  - desync windows can spawn a nearby live decoy pointer (desktop) and apply small trap-zone click-offset interventions
+  - optional runtime counters are emitted for trail nodes, decoy activations, and click-offset interventions
+  - cursor layer z-order/compositing is tuned so pointer sprites remain readable above heavy visual effects without intercepting input
+- Targeted control remap subsystem:
+  - `TargetedCursorLayer` runs a config-driven periodic remap loop for `[data-trap-zone]` interactives
+  - critical controls are remapped to `wait/not-allowed/progress/crosshair` cursors with randomized cadence/chance
+  - remaps remain non-blocking and coexist with existing trap-zone lag/offset guardrails
 - Primitive runtime behavior uses `hostilityPrimitives.ts` defaults and reducer/event hooks.
 - Hostility mode contract:
   - `HOSTILITY_MODE = 'maximum'` in `hostilityPrimitives.ts`
@@ -134,6 +150,12 @@ src/
 - Maximum hostility constants now include:
   - `entryGate` timing/regression/stall release config
   - `shellAmbientCycle` ambient interval/chance/target control config
+  - `primitives.cursorPresentation` visibility/trail policy config
+  - `tour.skillChaos` contract/combo/token tuning config
+- Tour skill-chaos architecture:
+  - `TourRunState.skillChaos` tracks active contract, combo/peak combo, chaos score, token bank/consumption, and contract win/loss counters
+  - contract lifecycle is reducer-driven (`SET_ACTIVE_CONTRACT`, `RESOLVE_CONTRACT`, `DECAY_CHAOS_COMBO`, token grant/consume actions)
+  - catastrophic events can be downgraded to instability by spending a chaos token without altering base event probabilities
 - Required minigame gates are embedded directly in tour question steps:
   - Step 6: Bureaucracy Queue
   - Step 11: Maze of Consent

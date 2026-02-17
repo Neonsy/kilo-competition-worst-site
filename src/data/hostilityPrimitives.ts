@@ -49,6 +49,29 @@ export interface CursorGlobalRules {
   ghostCursorCountByPhase: Record<HostilityPhase, number>;
   desyncChanceByPhase: Record<HostilityPhase, number>;
   globalRelaxAfterFails: number;
+  presentation: {
+    nativeCursorPolicy: 'mostly-visible-brief-hide';
+    hideBurstChanceOnDesync: number;
+    hideBurstWindowMs: [number, number];
+    hideBurstCooldownMs: number;
+    trailLifetimeMs: number;
+    trailSpawnIntervalMs: number;
+    maxTrailNodesDesktop: number;
+    maxTrailNodesMobile: number;
+    trailBlurPxRange: [number, number];
+    trailOpacityRange: [number, number];
+    trailPointerStyle: 'real-pointer';
+    trailScaleRange: [number, number];
+    trailRotationJitterDeg: [number, number];
+    liveDecoyEnabled: boolean;
+    liveDecoyCountDesktop: number;
+    liveDecoyCountMobile: number;
+    liveDecoyOffsetPxRange: [number, number];
+    criticalControlRemapChance: number;
+    criticalControlRemapIntervalMs: [number, number];
+    desyncClickOffsetChance: number;
+    desyncClickOffsetPxRange: [number, number];
+  };
 }
 
 export interface LoadingLabyrinthRules {
@@ -70,6 +93,31 @@ export interface HostilityPrimitiveConfig {
   cursorGlobalRules: CursorGlobalRules;
   loadingLabyrinthRules: LoadingLabyrinthRules;
 }
+
+const cursorPresentationSource = MAXIMUM_HOSTILITY.primitives.cursorPresentation;
+const cursorPresentationDefaults: CursorGlobalRules['presentation'] = {
+  nativeCursorPolicy: 'mostly-visible-brief-hide',
+  hideBurstChanceOnDesync: 0.16,
+  hideBurstWindowMs: [140, 280],
+  hideBurstCooldownMs: 1100,
+  trailLifetimeMs: 3000,
+  trailSpawnIntervalMs: 70,
+  maxTrailNodesDesktop: 42,
+  maxTrailNodesMobile: 24,
+  trailBlurPxRange: [6, 14],
+  trailOpacityRange: [0.08, 0.42],
+  trailPointerStyle: 'real-pointer',
+  trailScaleRange: [0.9, 1.2],
+  trailRotationJitterDeg: [-6, 6],
+  liveDecoyEnabled: true,
+  liveDecoyCountDesktop: 1,
+  liveDecoyCountMobile: 0,
+  liveDecoyOffsetPxRange: [10, 24],
+  criticalControlRemapChance: 0.6,
+  criticalControlRemapIntervalMs: [480, 980],
+  desyncClickOffsetChance: 0.34,
+  desyncClickOffsetPxRange: [4, 12],
+};
 
 export const hostilityPrimitives: HostilityPrimitiveConfig = {
   cursorTrapZones: [
@@ -120,6 +168,29 @@ export const hostilityPrimitives: HostilityPrimitiveConfig = {
     ghostCursorCountByPhase: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.cursorGhostCount),
     desyncChanceByPhase: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.cursorDesync),
     globalRelaxAfterFails: 3,
+    presentation: {
+      nativeCursorPolicy: cursorPresentationSource.nativeCursorPolicy ?? cursorPresentationDefaults.nativeCursorPolicy,
+      hideBurstChanceOnDesync: cursorPresentationSource.hideBurstChanceOnDesync ?? cursorPresentationDefaults.hideBurstChanceOnDesync,
+      hideBurstWindowMs: cursorPresentationSource.hideBurstWindowMs ?? cursorPresentationDefaults.hideBurstWindowMs,
+      hideBurstCooldownMs: cursorPresentationSource.hideBurstCooldownMs ?? cursorPresentationDefaults.hideBurstCooldownMs,
+      trailLifetimeMs: cursorPresentationSource.trailLifetimeMs ?? cursorPresentationDefaults.trailLifetimeMs,
+      trailSpawnIntervalMs: cursorPresentationSource.trailSpawnIntervalMs ?? cursorPresentationDefaults.trailSpawnIntervalMs,
+      maxTrailNodesDesktop: cursorPresentationSource.maxTrailNodesDesktop ?? cursorPresentationDefaults.maxTrailNodesDesktop,
+      maxTrailNodesMobile: cursorPresentationSource.maxTrailNodesMobile ?? cursorPresentationDefaults.maxTrailNodesMobile,
+      trailBlurPxRange: cursorPresentationSource.trailBlurPxRange ?? cursorPresentationDefaults.trailBlurPxRange,
+      trailOpacityRange: cursorPresentationSource.trailOpacityRange ?? cursorPresentationDefaults.trailOpacityRange,
+      trailPointerStyle: cursorPresentationSource.trailPointerStyle ?? cursorPresentationDefaults.trailPointerStyle,
+      trailScaleRange: cursorPresentationSource.trailScaleRange ?? cursorPresentationDefaults.trailScaleRange,
+      trailRotationJitterDeg: cursorPresentationSource.trailRotationJitterDeg ?? cursorPresentationDefaults.trailRotationJitterDeg,
+      liveDecoyEnabled: cursorPresentationSource.liveDecoyEnabled ?? cursorPresentationDefaults.liveDecoyEnabled,
+      liveDecoyCountDesktop: cursorPresentationSource.liveDecoyCountDesktop ?? cursorPresentationDefaults.liveDecoyCountDesktop,
+      liveDecoyCountMobile: cursorPresentationSource.liveDecoyCountMobile ?? cursorPresentationDefaults.liveDecoyCountMobile,
+      liveDecoyOffsetPxRange: cursorPresentationSource.liveDecoyOffsetPxRange ?? cursorPresentationDefaults.liveDecoyOffsetPxRange,
+      criticalControlRemapChance: cursorPresentationSource.criticalControlRemapChance ?? cursorPresentationDefaults.criticalControlRemapChance,
+      criticalControlRemapIntervalMs: cursorPresentationSource.criticalControlRemapIntervalMs ?? cursorPresentationDefaults.criticalControlRemapIntervalMs,
+      desyncClickOffsetChance: cursorPresentationSource.desyncClickOffsetChance ?? cursorPresentationDefaults.desyncClickOffsetChance,
+      desyncClickOffsetPxRange: cursorPresentationSource.desyncClickOffsetPxRange ?? cursorPresentationDefaults.desyncClickOffsetPxRange,
+    },
   },
   loadingLabyrinthRules: {
     stageDurationsMs: {
