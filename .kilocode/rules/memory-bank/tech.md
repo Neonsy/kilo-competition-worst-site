@@ -275,3 +275,31 @@ npm run build      # Next production build
   - `npm run typecheck` ✅
   - `npm run lint` ✅
   - `npm run build` ✅
+
+## Maximum Hostility Everywhere (2026-02-17)
+
+- Added `src/data/maximumHostility.ts`:
+  - fixed decision-complete max constants for visuals, shell corruption, heartbeat, overlays, primitives, and tour event chances
+  - `fixedPhaseRecord(...)` helper to preserve phase-shaped interfaces without runtime scaling
+- Added `src/lib/useMaximumHeartbeatPulse.ts`:
+  - continuous base/spike pulse emission independent of user input
+- Updated `src/data/hostilityPrimitives.ts`:
+  - `HostilityMode` + `HOSTILITY_MODE = 'maximum'`
+  - all phase maps normalized to equal max values
+- Updated `src/data/tourEvents.ts`:
+  - `scheduleTourEventMaximum(params)` for phase-free scheduling by trigger + cooldown + catastrophic guardrail
+- Updated `src/app/tour/page.tsx`:
+  - swapped to `scheduleTourEventMaximum(...)`
+  - removed phase-scaling formulas from runtime chance/lockout/intensity behavior
+  - fixed back-button hostility rule and fixed validation additive term
+  - removed phase escalation copy; UI now shows max-mode copy
+- Updated route pages (`/`, `/exhibits`, `/help`, `/settings`, `/certificate`):
+  - wired `HOSTILITY_MODE` + `MAXIMUM_HOSTILITY` + `useMaximumHeartbeatPulse`
+  - fixed max resonance/overlay/shell/cursor layers on all routes
+- Updated `src/components/LivingOverlay.tsx` + `src/app/globals.css`:
+  - added max-mode rift bands and fracture notices
+  - strengthened shell breaking and control halo contrast
+- Re-verified:
+  - `npm run typecheck` ✅
+  - `npm run lint` ✅
+  - `npm run build` ✅

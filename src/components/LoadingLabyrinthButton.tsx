@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { HostilityPhase, hostilityPrimitives, randomInRange, withPityAdjustment } from '@/data/hostilityPrimitives';
+import { HostilityMode, HostilityPhase, hostilityPrimitives, randomInRange, withPityAdjustment } from '@/data/hostilityPrimitives';
 
 type LoadingStage = 'boot' | 'precheck' | 'deep-scan' | 'finalizing' | 'false-complete' | 'commit';
 
@@ -16,6 +16,7 @@ interface LoadingLabyrinthButtonProps {
   label: string;
   phase: HostilityPhase;
   pityPass?: boolean;
+  hostilityMode?: HostilityMode;
   className?: string;
   onCommit: () => Promise<void> | void;
   onIncident?: (line: string) => void;
@@ -37,27 +38,29 @@ export function LoadingLabyrinthButton({
   label,
   phase,
   pityPass = false,
+  hostilityMode = 'legacy',
   className = '',
   onCommit,
   onIncident,
   onMetrics,
 }: LoadingLabyrinthButtonProps) {
   const rules = hostilityPrimitives.loadingLabyrinthRules;
+  const effectivePhase: HostilityPhase = hostilityMode === 'maximum' ? 3 : phase;
   const [isRunning, setIsRunning] = useState(false);
   const [stage, setStage] = useState<LoadingStage>('boot');
   const [progress, setProgress] = useState(0);
   const [cooldownUntil, setCooldownUntil] = useState(0);
 
-  const loopChance = useMemo(() => withPityAdjustment(rules.loopChanceByPhase[phase], pityPass), [phase, pityPass, rules.loopChanceByPhase]);
+  const loopChance = useMemo(() => withPityAdjustment(rules.loopChanceByPhase[effectivePhase], pityPass), [effectivePhase, pityPass, rules.loopChanceByPhase]);
   const falseCompleteChance = useMemo(
-    () => withPityAdjustment(rules.falseCompleteChanceByPhase[phase], pityPass),
-    [phase, pityPass, rules.falseCompleteChanceByPhase]
+    () => withPityAdjustment(rules.falseCompleteChanceByPhase[effectivePhase], pityPass),
+    [effectivePhase, pityPass, rules.falseCompleteChanceByPhase]
   );
   const regressionChance = useMemo(
-    () => withPityAdjustment(rules.regressionChanceByPhase[phase], pityPass),
-    [phase, pityPass, rules.regressionChanceByPhase]
+    () => withPityAdjustment(rules.regressionChanceByPhase[effectivePhase], pityPass),
+    [effectivePhase, pityPass, rules.regressionChanceByPhase]
   );
-  const stallChance = useMemo(() => withPityAdjustment(rules.stallChanceByPhase[phase], pityPass), [phase, pityPass, rules.stallChanceByPhase]);
+  const stallChance = useMemo(() => withPityAdjustment(rules.stallChanceByPhase[effectivePhase], pityPass), [effectivePhase, pityPass, rules.stallChanceByPhase]);
 
   const canClick = Date.now() > cooldownUntil && !isRunning;
 
@@ -82,7 +85,7 @@ export function LoadingLabyrinthButton({
       const current = stageOrder[stageIndex];
       setStage(current);
 
-      const [minMs, maxMs] = rules.stageDurationsMs[phase];
+      const [minMs, maxMs] = rules.stageDurationsMs[effectivePhase];
       const waitMs = randomInRange(minMs, maxMs) + (current === 'deep-scan' && Math.random() < stallChance ? randomInRange(380, 760) : 0);
       if (current === 'deep-scan' && Math.random() < stallChance) {
         onIncident?.('Loading stall: deep scan waiting on decorative infrastructure.');
@@ -169,4 +172,3 @@ export function LoadingLabyrinthButton({
 }
 
 export default LoadingLabyrinthButton;
-

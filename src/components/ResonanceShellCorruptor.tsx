@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import type { HostilityMode } from "@/data/hostilityPrimitives";
+import { MAXIMUM_HOSTILITY } from "@/data/maximumHostility";
 
 type CorruptionProfile = "light" | "medium" | "heavy";
 
@@ -11,6 +13,7 @@ interface ResonanceShellCorruptorProps {
   rootSelector?: string;
   shellSelector?: string;
   enableAmbient?: boolean;
+  hostilityMode?: HostilityMode;
 }
 
 interface ProfileConfig {
@@ -43,6 +46,7 @@ export default function ResonanceShellCorruptor({
   rootSelector = ".res-interaction-root",
   shellSelector = ".res-shell",
   enableAmbient = true,
+  hostilityMode = 'legacy',
 }: ResonanceShellCorruptorProps) {
   const timersRef = useRef<number[]>([]);
   const rafRef = useRef<number | null>(null);
@@ -65,15 +69,26 @@ export default function ResonanceShellCorruptor({
 
   useEffect(() => () => clearQueued(), [clearQueued]);
 
-  useEffect(() => {
-    if (!pulseKey) return;
-
-    const config = PROFILE_CONFIG[profile];
-    const profileIntensity = clamp(
-      intensity * (profile === "light" ? 1.35 : profile === "medium" ? 1.08 : 1),
-      0.22,
-      0.98
-    );
+  const triggerCorruption = useCallback((seedKey: number) => {
+    if (!seedKey) return;
+    const isMaximum = hostilityMode === 'maximum';
+    const baseConfig = PROFILE_CONFIG[profile];
+    const config: ProfileConfig = isMaximum
+      ? {
+          breakMs: MAXIMUM_HOSTILITY.shell.breakMs,
+          healMs: MAXIMUM_HOSTILITY.shell.healMs,
+          maxTargets: MAXIMUM_HOSTILITY.shell.maxTargets,
+          ambientMinMs: MAXIMUM_HOSTILITY.shell.ambientRangeMs[0],
+          ambientMaxMs: MAXIMUM_HOSTILITY.shell.ambientRangeMs[1],
+        }
+      : baseConfig;
+    const profileIntensity = isMaximum
+      ? MAXIMUM_HOSTILITY.shell.intensity
+      : clamp(
+          intensity * (profile === "light" ? 1.35 : profile === "medium" ? 1.08 : 1),
+          0.22,
+          0.98
+        );
     const roots = Array.from(document.querySelectorAll<HTMLElement>(rootSelector));
 
     roots.forEach((root, rootIndex) => {
@@ -81,7 +96,7 @@ export default function ResonanceShellCorruptor({
       if (!shells.length) return;
 
       const seededShells = shells
-        .map((el, i) => ({ el, score: seeded(pulseKey + rootIndex * 13, i + 1) }))
+        .map((el, i) => ({ el, score: seeded(seedKey + rootIndex * 13, i + 1) }))
         .sort((a, b) => a.score - b.score)
         .map(item => item.el);
 
@@ -102,7 +117,7 @@ export default function ResonanceShellCorruptor({
       );
 
       targets.forEach((shell, index) => {
-        const sample = seeded(pulseKey, index + 11);
+        const sample = seeded(seedKey, index + 11);
         const variantClass = sample > 0.52 ? "res-shell-crack-snap" : "res-shell-fault-warp";
         const shearClass = sample > 0.74 ? "res-shell-shear" : "";
         shell.style.setProperty("--res-shell-intensity", String(profileIntensity));
@@ -127,11 +142,32 @@ export default function ResonanceShellCorruptor({
         );
       });
     });
-  }, [pulseKey, intensity, profile, rootSelector, shellSelector, queueTimer]);
+  }, [hostilityMode, intensity, profile, queueTimer, rootSelector, shellSelector]);
+
+  useEffect(() => {
+    if (!pulseKey) return;
+    triggerCorruption(pulseKey);
+    if (hostilityMode === 'maximum') {
+      queueTimer(
+        window.setTimeout(() => {
+          triggerCorruption(pulseKey + MAXIMUM_HOSTILITY.shell.aftershockDelayMs);
+        }, MAXIMUM_HOSTILITY.shell.aftershockDelayMs)
+      );
+    }
+  }, [hostilityMode, pulseKey, queueTimer, triggerCorruption]);
 
   useEffect(() => {
     if (!enableAmbient) return;
-    const config = PROFILE_CONFIG[profile];
+    const config =
+      hostilityMode === 'maximum'
+        ? {
+            breakMs: MAXIMUM_HOSTILITY.shell.breakMs,
+            healMs: MAXIMUM_HOSTILITY.shell.healMs,
+            maxTargets: MAXIMUM_HOSTILITY.shell.maxTargets,
+            ambientMinMs: MAXIMUM_HOSTILITY.shell.ambientRangeMs[0],
+            ambientMaxMs: MAXIMUM_HOSTILITY.shell.ambientRangeMs[1],
+          }
+        : PROFILE_CONFIG[profile];
     let cancelled = false;
 
     const scheduleAmbient = () => {
@@ -165,7 +201,7 @@ export default function ResonanceShellCorruptor({
     return () => {
       cancelled = true;
     };
-  }, [enableAmbient, profile, rootSelector, shellSelector, queueTimer]);
+  }, [enableAmbient, hostilityMode, profile, rootSelector, shellSelector, queueTimer]);
 
   return null;
 }

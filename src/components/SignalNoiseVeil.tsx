@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useEffect, useState, useRef } from "react";
+import type { HostilityMode } from "@/data/hostilityPrimitives";
 
 /**
  * SignalNoiseVeil
@@ -22,6 +23,7 @@ export interface SignalNoiseVeilProps {
   eventPulse?: boolean;
   safeZones?: Array<{ x: number; y: number; w: number; h: number }>;
   coverage?: "peripheral" | "mixed" | "full";
+  hostilityMode?: HostilityMode;
   /** Optional className override */
   className?: string;
 }
@@ -76,6 +78,7 @@ export default function SignalNoiseVeil({
   eventPulse = false,
   safeZones: _safeZones,
   coverage: _coverage,
+  hostilityMode = 'legacy',
   className = "",
 }: SignalNoiseVeilProps) {
   const [seed, setSeed] = useState(() => Date.now());
@@ -106,15 +109,16 @@ export default function SignalNoiseVeil({
     return () => clearTimeout(timer);
   }, [pulseKey]);
 
+  const effectiveSeverity = hostilityMode === 'maximum' ? Math.max(severity, 0.88) : severity;
   const scanlineElements = useMemo(
-    () => (scanlines ? generateScanlines(severity, seed) : []),
-    [scanlines, severity, seed]
+    () => (scanlines ? generateScanlines(effectiveSeverity, seed) : []),
+    [scanlines, effectiveSeverity, seed]
   );
 
-  const intensityClass = getIntensityClass(severity);
+  const intensityClass = getIntensityClass(effectiveSeverity);
   const boosted = Date.now() < pulseBoostUntil;
   const flickerStyle = flickerActive
-    ? { opacity: Math.min(0.35, severity * 0.4) }
+    ? { opacity: Math.min(0.5, effectiveSeverity * 0.5) }
     : {};
 
   return (
@@ -123,7 +127,7 @@ export default function SignalNoiseVeil({
       style={flickerStyle}
       aria-hidden="true"
       data-resonance-layer="noise"
-      data-severity={severity.toFixed(2)}
+      data-severity={effectiveSeverity.toFixed(2)}
     >
       {/* Noise texture overlay */}
       {noise && (
@@ -131,8 +135,8 @@ export default function SignalNoiseVeil({
           style={{
             position: "absolute",
             inset: 0,
-            opacity: boosted ? Math.min(0.38, 0.14 + severity * 0.24) : 0.08 + severity * 0.12,
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='${0.6 + severity * 0.3}' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+            opacity: boosted ? Math.min(0.48, 0.14 + effectiveSeverity * 0.32) : 0.08 + effectiveSeverity * 0.16,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='${0.6 + effectiveSeverity * 0.3}' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
             backgroundRepeat: "repeat",
             mixBlendMode: "overlay",
           }}
@@ -147,7 +151,7 @@ export default function SignalNoiseVeil({
             className="res-scanline"
             style={{
               left: `${sl.left}%`,
-              width: boosted ? "70%" : "38%",
+              width: boosted ? "84%" : "44%",
               animationDelay: `${sl.delay}s`,
               animationDuration: `${boosted ? Math.max(1.4, sl.duration * 0.55) : sl.duration}s`,
             }}
@@ -160,7 +164,7 @@ export default function SignalNoiseVeil({
           style={{
             position: "absolute",
             inset: 0,
-            background: `rgba(255, 0, 0, ${severity * 0.08})`,
+            background: `rgba(255, 0, 0, ${effectiveSeverity * 0.09})`,
             mixBlendMode: "overlay",
           }}
         />

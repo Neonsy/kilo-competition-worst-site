@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AnnoyingSoundscape } from '@/components/AnnoyingSoundscape';
+import { MysteryMeatNav } from '@/components/MysteryMeatNav';
 
 export const metadata: Metadata = {
   title: "🏛️ The Museum of Bad Decisions 🏛️",
@@ -7,11 +9,11 @@ export const metadata: Metadata = {
   keywords: "museum, bad decisions, regret, terrible choices, interactive exhibits",
   icons: {
     icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "https://upload.wikimedia.org/wikipedia/commons/c/c4/Icon_Error.png", type: "image/png" },
       { url: "/favicon.ico", sizes: "any" },
     ],
-    shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    shortcut: "https://upload.wikimedia.org/wikipedia/commons/c/c4/Icon_Error.png",
+    apple: "https://upload.wikimedia.org/wikipedia/commons/c/c4/Icon_Error.png",
   },
 };
 
@@ -39,9 +41,9 @@ export default function RootLayout({
         
         {/* Main content */}
         {children}
-        
-        {/* Hidden audio element for future chaos */}
-        <div aria-hidden="true" className="hidden" />
+
+        <MysteryMeatNav />
+        <AnnoyingSoundscape />
       </body>
     </html>
   );

@@ -29,10 +29,13 @@ import { getRandomValidationMessage } from '@/data/validations';
 import { getRandomDisclaimer } from '@/data/disclaimers';
 import { getRandomExhibits, calculateRegretScore } from '@/data/exhibits';
 import { getBadgeByScore } from '@/data/badges';
-import { getPhaseByStep, scheduleTourEvent, TourEvent } from '@/data/tourEvents';
+import { scheduleTourEventMaximum, TourEvent } from '@/data/tourEvents';
 import { MinigameId } from '@/data/minigames';
 import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutationRule, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
+import { HOSTILITY_MODE } from '@/data/hostilityPrimitives';
+import { MAXIMUM_HOSTILITY } from '@/data/maximumHostility';
 import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
+import { useMaximumHeartbeatPulse } from '@/lib/useMaximumHeartbeatPulse';
 
 type TourAnswerValue = string | number | boolean | string[] | IntegrityAnswer | MinigameResult;
 
@@ -122,11 +125,7 @@ type TourAction =
 const MAX_HARD_REGRESSIONS = 3;
 const PITY_PASS_TRIGGER = 4;
 const CATASTROPHIC_COOLDOWN_MS = 12000;
-const ESCALATION_MODEL: Record<1 | 2 | 3, { eventChance: number; regressionChance: number; lockoutRange: [number, number] }> = {
-  1: { eventChance: 0.24, regressionChance: 0.12, lockoutRange: [900, 1900] },
-  2: { eventChance: 0.42, regressionChance: 0.2, lockoutRange: [1500, 3200] },
-  3: { eventChance: 0.58, regressionChance: 0.28, lockoutRange: [2300, 4400] },
-};
+const EFFECTIVE_PHASE: 1 | 2 | 3 = 3;
 
 function initialMinigameStats(): Record<MinigameId, MinigameStat> {
   return {
@@ -363,7 +362,7 @@ function tourReducer(state: TourRunState, action: TourAction): TourRunState {
           break;
         case 'cursor-trap':
           next.interactionState.cursorMode = 'trapped';
-          next.interactionState.cursorHotspotOffset = action.phase === 1 ? 2 : action.phase === 2 ? 4 : 6;
+          next.interactionState.cursorHotspotOffset = MAXIMUM_HOSTILITY.primitives.cursorHotspotOffset;
           next.interactionState.cursorDecoyVisibleUntil = Math.max(
             next.interactionState.cursorDecoyVisibleUntil,
             action.now + Math.min(1800, action.lockoutMs)
@@ -465,7 +464,7 @@ function TourContent() {
 
   const exhibitParam = searchParams.get('exhibit');
   const currentQuestion = getQuestionByNumber(runState.step);
-  const phase = getPhaseByStep(runState.step);
+  const phase = EFFECTIVE_PHASE;
   const attemptsOnCurrentStep = runState.attempts[runState.step] || 0;
   const pityPass = attemptsOnCurrentStep >= PITY_PASS_TRIGGER;
   const skinMap = runState.interactionState.activeSkinMap;
@@ -474,12 +473,7 @@ function TourContent() {
       Object.values(runState.interactionState.minigameStats).reduce((sum, item) => sum + (item.passed ? 1 : 0), 0),
     [runState.interactionState.minigameStats]
   );
-  const resonanceIntensity = Math.min(
-    0.95,
-    (phase === 1 ? 0.38 : phase === 2 ? 0.58 : 0.82) +
-      runState.strikes * 0.02 +
-      runState.interactionState.loadingDebt * 0.01
-  );
+  const resonanceIntensity = MAXIMUM_HOSTILITY.visual.resonanceIntensity;
   const resonanceSafeZones = useMemo(
     () => [
       { x: 14, y: 24, w: 72, h: 45 },
@@ -515,7 +509,7 @@ function TourContent() {
       const now = Date.now();
       if (now < runState.interactionState.mutationCooldownUntil) return;
 
-      const chance = pityPass ? mutationRule.pulseChanceByPhase[phase] * 0.55 : mutationRule.pulseChanceByPhase[phase];
+      const chance = pityPass ? mutationRule.pulseChanceByPhase[EFFECTIVE_PHASE] * 0.55 : mutationRule.pulseChanceByPhase[EFFECTIVE_PHASE];
       if (!bypassChance && Math.random() > chance) return;
 
       const target = module || randomModule(now + runState.step + runState.strikes);
@@ -533,7 +527,6 @@ function TourContent() {
       pushFeed(`Design roulette pulse (${reason}) mutated ${target}.`);
     },
     [
-      phase,
       pityPass,
       pushFeed,
       pushPulse,
@@ -577,23 +570,26 @@ function TourContent() {
         return false;
       }
       const now = Date.now();
-      const [minLock, maxLock] = ESCALATION_MODEL[eventPhase].lockoutRange;
+      const [minLock, maxLock] = MAXIMUM_HOSTILITY.tour.lockoutRangeMs;
       const lockoutMs = minLock + Math.floor(seeded(31, attemptBoost) * (maxLock - minLock));
       const freezeMs = Math.floor(lockoutMs * 0.7);
 
       dispatch({ type: 'APPLY_EVENT', event, phase: eventPhase, now, lockoutMs, freezeMs });
-      pushFeed(`Event: ${event.copy}`);
+      const normalizedCopy = event.copy
+        .replace(/phase[- ]?\d/gi, 'MAX')
+        .replace(/phase/gi, 'mode');
+      pushFeed(`Event: ${normalizedCopy}`);
       if (event.effect === 'cursor-desync' || event.effect === 'cursor-global-shift') {
-        pushPulse('cursor', Math.min(1, 0.52 + eventPhase * 0.12));
+        pushPulse('cursor', 0.9);
       } else if (event.effect === 'loading-loop' || event.effect === 'loading-regress' || event.effect === 'loading-stall') {
-        pushPulse('loading', Math.min(1, 0.48 + eventPhase * 0.14));
+        pushPulse('loading', 0.88);
       } else if (event.effect === 'minigame-interrupt') {
-        pushPulse('minigame', Math.min(1, 0.56 + eventPhase * 0.12));
+        pushPulse('minigame', 0.92);
       } else if (event.effect !== 'skin-mutate') {
-        pushPulse('event', Math.min(1, 0.34 + eventPhase * 0.16));
+        pushPulse('event', 0.86);
       }
       if (event.effect === 'focus-trap' || event.effect === 'minigame-interrupt') {
-        setFocusArmSignal(now + eventPhase);
+        setFocusArmSignal(now + 1);
       }
       if (event.effect === 'skin-mutate') {
         triggerSkinMutation('event', undefined, true);
@@ -612,20 +608,19 @@ function TourContent() {
     if (!started) return;
     const timer = setInterval(() => {
       const now = Date.now();
-      const idleEvent = scheduleTourEvent({
-        phase,
+      const idleEvent = scheduleTourEventMaximum({
         trigger: 'idle',
         now,
         lastEventAt: runState.lastEventAt,
         catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
-        baseChance: ESCALATION_MODEL[phase].eventChance * 0.58,
+        baseChance: MAXIMUM_HOSTILITY.tour.idleChance,
         rng: salt => seeded(salt, 4),
       });
       if (!idleEvent) return;
-      applyEvent(idleEvent, phase, pityPass, 4);
+      applyEvent(idleEvent, EFFECTIVE_PHASE, pityPass, 4);
     }, 2500);
     return () => clearInterval(timer);
-  }, [applyEvent, phase, pityPass, runState.lastEventAt, seeded, started]);
+  }, [applyEvent, pityPass, runState.lastEventAt, seeded, started]);
 
   const handleAnswer = (questionId: string, value: TourAnswerValue) => {
     let nextValue = value;
@@ -641,7 +636,10 @@ function TourContent() {
 
   const validateStep = (question: TourQuestion, mercy: boolean): boolean => {
     const answer = answers[question.id];
-    const randomFailChance = Math.min(0.08 + question.difficultyWeight * 0.07 + runState.instability * 0.002 + (question.phase - 1) * 0.05, 0.62);
+    const randomFailChance = Math.min(
+      0.08 + question.difficultyWeight * 0.07 + runState.instability * 0.002 + MAXIMUM_HOSTILITY.tour.randomValidationAdditive,
+      0.62
+    );
 
     if (question.type === 'minigame') {
       const result = asMinigameResult(answer);
@@ -775,13 +773,13 @@ function TourContent() {
     if (backClicks % 4 === 3) {
       dispatch({ type: 'SET_STEP', step: Math.max(1, runState.step - 1) });
       pushFeed('Back action accepted. You moved backward.');
-    } else if (phase === 3 && backClicks % 3 === 1) {
+    } else if (Math.random() < 0.33) {
       dispatch({ type: 'SET_STEP', step: Math.min(totalQuestions, runState.step + 1) });
-      pushFeed('Back action rerouted forward by phase policy.');
+      pushFeed('Back action rerouted forward by max-mode policy.');
     } else {
       setError('Back button currently unavailable.');
     }
-  }, [backClicks, phase, pushFeed, runState.lockouts.nextUntil, runState.step]);
+  }, [backClicks, pushFeed, runState.lockouts.nextUntil, runState.step]);
 
   const completeTour = () => {
     const exhibitIds = getRandomExhibits(4).map(e => e.id);
@@ -862,21 +860,20 @@ function TourContent() {
     }
 
     const attemptCount = (runState.attempts[runState.step] || 0) + 1;
-    dispatch({ type: 'RECORD_ATTEMPT', step: runState.step, phase: currentQuestion.phase });
+    dispatch({ type: 'RECORD_ATTEMPT', step: runState.step, phase: EFFECTIVE_PHASE });
     const mercy = attemptCount >= PITY_PASS_TRIGGER;
-    setFocusArmSignal(now + currentQuestion.phase + attemptCount);
+    setFocusArmSignal(now + EFFECTIVE_PHASE + attemptCount);
     triggerSkinMutation('submit');
 
-    const beforeValidateEvent = scheduleTourEvent({
-      phase: currentQuestion.phase,
+    const beforeValidateEvent = scheduleTourEventMaximum({
       trigger: 'before-validate',
       now,
       lastEventAt: runState.lastEventAt,
       catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
-      baseChance: ESCALATION_MODEL[currentQuestion.phase].eventChance,
+      baseChance: MAXIMUM_HOSTILITY.tour.beforeValidateChance,
       rng: salt => seeded(salt, 1),
     });
-    if (beforeValidateEvent && applyEvent(beforeValidateEvent, currentQuestion.phase, mercy, 1)) return;
+    if (beforeValidateEvent && applyEvent(beforeValidateEvent, EFFECTIVE_PHASE, mercy, 1)) return;
 
     if (!validateStep(currentQuestion, mercy)) {
       if (mercy && runState.recoveryTokens > 0) {
@@ -886,30 +883,28 @@ function TourContent() {
       return;
     }
 
-    const afterValidateEvent = scheduleTourEvent({
-      phase: currentQuestion.phase,
+    const afterValidateEvent = scheduleTourEventMaximum({
       trigger: 'after-validate',
       now,
       lastEventAt: runState.lastEventAt,
       catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
-      baseChance: ESCALATION_MODEL[currentQuestion.phase].eventChance * 0.85,
+      baseChance: MAXIMUM_HOSTILITY.tour.afterValidateChance,
       rng: salt => seeded(salt, 2),
     });
-    if (afterValidateEvent && applyEvent(afterValidateEvent, currentQuestion.phase, mercy, 2)) return;
+    if (afterValidateEvent && applyEvent(afterValidateEvent, EFFECTIVE_PHASE, mercy, 2)) return;
 
-    const beforeTransitionEvent = scheduleTourEvent({
-      phase: currentQuestion.phase,
+    const beforeTransitionEvent = scheduleTourEventMaximum({
       trigger: 'before-transition',
       now: Date.now(),
       lastEventAt: runState.lastEventAt,
       catastrophicCooldownMs: CATASTROPHIC_COOLDOWN_MS,
-      baseChance: ESCALATION_MODEL[currentQuestion.phase].eventChance * 0.9,
+      baseChance: MAXIMUM_HOSTILITY.tour.beforeTransitionChance,
       rng: salt => seeded(salt, 3),
     });
-    if (beforeTransitionEvent && applyEvent(beforeTransitionEvent, currentQuestion.phase, mercy, 3)) return;
+    if (beforeTransitionEvent && applyEvent(beforeTransitionEvent, EFFECTIVE_PHASE, mercy, 3)) return;
 
-    if (!mercy && runState.hardRegressions < MAX_HARD_REGRESSIONS && Math.random() < ESCALATION_MODEL[currentQuestion.phase].regressionChance) {
-      dispatch({ type: 'REGRESS', phase: currentQuestion.phase });
+    if (!mercy && runState.hardRegressions < MAX_HARD_REGRESSIONS && Math.random() < MAXIMUM_HOSTILITY.tour.regressionChance) {
+      dispatch({ type: 'REGRESS', phase: EFFECTIVE_PHASE });
       setError('Sequence drift: regression penalty applied.');
       pushFeed('Regression penalty triggered by escalation model.');
       pushPulse('event', 0.72);
@@ -928,11 +923,14 @@ function TourContent() {
     setError(null);
   };
 
-  const phaseLabel = useMemo(() => {
-    if (phase === 1) return 'Phase 1: Orientation Chaos';
-    if (phase === 2) return 'Phase 2: Penalty Compounding';
-    return 'Phase 3: Maximum Hostility';
-  }, [phase]);
+  const phaseLabel = 'MAX HOSTILITY MODE';
+
+  useMaximumHeartbeatPulse({
+    active: true,
+    onPulse: strength => {
+      setPulseState(prev => emitPulse(prev, 'event', strength));
+    },
+  });
 
   const lockoutMs = Math.max(0, runState.lockouts.nextUntil - nowTick);
   const freezeMs = Math.max(0, runState.debuffs.uiFreezeUntil - nowTick);
@@ -945,7 +943,7 @@ function TourContent() {
           <div className="flex flex-1">
             <SideNav />
             <main className="relative flex-1 overflow-x-hidden">
-              <LivingOverlay mode="tour" phase={1} intensity="medium" mobileHostile />
+              <LivingOverlay mode="tour" phase={EFFECTIVE_PHASE} hostilityMode={HOSTILITY_MODE} intensity={MAXIMUM_HOSTILITY.overlay.intensity} mobileHostile />
               <div className="min-h-[80vh] flex items-center justify-center p-4">
                 <div className="max-w-lg w-full p-8 bg-[#F5F5DC] border-8 border-double border-[#8B4513] shadow-chaos relative z-10" style={{ fontFamily: "'Comic Neue', cursive" }}>
                   <div className="text-center">
@@ -958,7 +956,7 @@ function TourContent() {
                       <p className="font-bold mb-2">📋 TOUR DETAILS:</p>
                       <ul className="text-sm space-y-1">
                         <li>• Duration: 18 hostile steps</li>
-                        <li>• Escalation: 3 phases</li>
+                        <li>• Runtime: phase-free maximum mode</li>
                         <li>• Difficulty: unstable and punitive</li>
                         <li>• Required minigames: 3</li>
                         <li>• Recovery: Rare pity tokens</li>
@@ -990,9 +988,10 @@ function TourContent() {
         <div className="flex flex-1">
           <SideNav />
           <main className={`res-interaction-root relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
-            <FakeBrowserChrome phase={phase} mode="tour" noiseLevel={runState.interactionState.chromeNoiseLevel * 100} onIncident={pushFeed} />
+            <FakeBrowserChrome phase={EFFECTIVE_PHASE} hostilityMode={HOSTILITY_MODE} mode="tour" noiseLevel={runState.interactionState.chromeNoiseLevel * 100} onIncident={pushFeed} />
             <CursorCorruptionLayer
-              phase={phase}
+              phase={EFFECTIVE_PHASE}
+              hostilityMode={HOSTILITY_MODE}
               pityPass={pityPass}
               active
               eventPulse={
@@ -1005,7 +1004,8 @@ function TourContent() {
               onIncident={pushFeed}
             />
             <TargetedCursorLayer
-              phase={phase}
+              phase={EFFECTIVE_PHASE}
+              hostilityMode={HOSTILITY_MODE}
               pityPass={pityPass}
               active
               offsetBoost={runState.interactionState.cursorHotspotOffset}
@@ -1013,7 +1013,8 @@ function TourContent() {
               onIncident={pushFeed}
             />
             <FocusSaboteur
-              phase={phase}
+              phase={EFFECTIVE_PHASE}
+              hostilityMode={HOSTILITY_MODE}
               step={runState.step}
               pityPass={pityPass}
               armSignal={focusArmSignal}
@@ -1021,14 +1022,16 @@ function TourContent() {
               onIncident={pushFeed}
             />
             <ClipboardSaboteur
-              phase={phase}
+              phase={EFFECTIVE_PHASE}
+              hostilityMode={HOSTILITY_MODE}
               pityPass={pityPass}
               active
               corruptionUntil={runState.interactionState.selectionCorruptUntil}
               onIncident={pushFeed}
             />
             <DragFrictionField
-              phase={phase}
+              phase={EFFECTIVE_PHASE}
+              hostilityMode={HOSTILITY_MODE}
               pityPass={pityPass}
               active
               resistanceBoost={Math.round(runState.interactionState.dragResistance * 10)}
@@ -1036,42 +1039,52 @@ function TourContent() {
             />
             <LivingOverlay
               mode="tour"
-              phase={phase}
-              intensity={phase === 3 ? 'high' : phase === 2 ? 'medium' : 'low'}
+              phase={EFFECTIVE_PHASE}
+              hostilityMode={HOSTILITY_MODE}
+              intensity={MAXIMUM_HOSTILITY.overlay.intensity}
               mobileHostile
               eventPulse={runState.strikes + runState.instability + runState.suspicion + runState.interactionState.loadingDebt}
             />
-            <ResonanceShellCorruptor pulseKey={pulseState.key} intensity={resonanceIntensity} profile="heavy" />
+            <ResonanceShellCorruptor
+              pulseKey={pulseState.key}
+              hostilityMode={HOSTILITY_MODE}
+              intensity={MAXIMUM_HOSTILITY.shell.intensity}
+              profile={MAXIMUM_HOSTILITY.shell.profile}
+            />
             <div className="res-layer-stack">
               <SignalNoiseVeil
-                severity={Math.min(0.95, resonanceIntensity * 0.72)}
+                hostilityMode={HOSTILITY_MODE}
+                severity={MAXIMUM_HOSTILITY.visual.resonanceNoiseSeverity}
                 scanlines
                 noise
                 pulseKey={pulseState.key}
-                coverage="full"
+                coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage}
                 safeZones={resonanceSafeZones}
               />
               <ResonanceFractureLayer
-                phase={phase}
+                hostilityMode={HOSTILITY_MODE}
+                phase={EFFECTIVE_PHASE}
                 intensity={resonanceIntensity}
                 pulseKey={pulseState.key}
-                coverage="mixed"
+                coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage}
                 safeZones={resonanceSafeZones}
               />
               <ResonancePulseLayer
-                phase={phase}
-                intensity={Math.min(0.95, resonanceIntensity + 0.04)}
+                hostilityMode={HOSTILITY_MODE}
+                phase={EFFECTIVE_PHASE}
+                intensity={MAXIMUM_HOSTILITY.visual.resonancePulseIntensity}
                 activeBurst={runState.interactionState.loadingFalseCompletes > 0}
                 pulseKey={pulseState.key}
-                coverage="full"
+                coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage}
                 safeZones={resonanceSafeZones}
               />
               <UIFragmentDebris
+                hostilityMode={HOSTILITY_MODE}
                 mode="tour"
-                density={phase === 3 ? 'dense' : 'medium'}
-                intensity={Math.min(0.95, resonanceIntensity)}
+                density={MAXIMUM_HOSTILITY.visual.resonanceFragmentDensity}
+                intensity={MAXIMUM_HOSTILITY.visual.resonanceIntensity}
                 pulseKey={pulseState.key}
-                coverage="full"
+                coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage}
                 safeZones={resonanceSafeZones}
               />
             </div>
@@ -1080,7 +1093,8 @@ function TourContent() {
                 <ProgressBar
                   currentStep={runState.step}
                   totalSteps={totalQuestions}
-                  phase={phase}
+                  phase={EFFECTIVE_PHASE}
+                  hostilityMode={HOSTILITY_MODE}
                   strikes={runState.strikes}
                   instability={runState.instability}
                   suspicion={runState.suspicion}
@@ -1098,7 +1112,7 @@ function TourContent() {
                     onMinigamePass={handleMinigamePass}
                     onMinigameFail={handleMinigameFail}
                     attemptsOnStep={attemptsOnCurrentStep}
-                    phase={phase}
+                    phase={EFFECTIVE_PHASE}
                     error={error}
                     disclaimer={disclaimer}
                     gateOpen={nowTick % 7000 < 1800}
@@ -1122,7 +1136,8 @@ function TourContent() {
                     <LoadingLabyrinthButton
                       className="min-w-[230px]"
                       label={runState.step >= totalQuestions ? 'Finalize Tour Commit' : 'Next (Labyrinth)'}
-                      phase={phase}
+                      phase={EFFECTIVE_PHASE}
+                      hostilityMode={HOSTILITY_MODE}
                       pityPass={pityPass || runState.interactionState.loadingBypassTokens > 0}
                       onIncident={pushFeed}
                       onMetrics={(metrics: LoadingLabyrinthMetrics) => {
@@ -1170,11 +1185,11 @@ function TourContent() {
                 </div>
 
                 <div className="p-3 bg-[#F5F5DC] border-2 border-[#FF69B4]">
-                  <p className="text-xs font-bold mb-1" style={{ fontFamily: "'Bangers', cursive" }}>PHASE METRICS</p>
+                  <p className="text-xs font-bold mb-1" style={{ fontFamily: "'Bangers', cursive" }}>RUN METRICS</p>
                   {[1, 2, 3].map(raw => {
                     const phaseKey = raw as 1 | 2 | 3;
                     const stats = runState.phaseStats[phaseKey];
-                    return <p key={phaseKey} className="text-[10px]" style={{ fontFamily: "'VT323', monospace" }}>P{phaseKey}: attempts {stats.attempts} | events {stats.events} | regressions {stats.regressions}</p>;
+                    return <p key={phaseKey} className="text-[10px]" style={{ fontFamily: "'VT323', monospace" }}>Bucket {phaseKey}: attempts {stats.attempts} | events {stats.events} | regressions {stats.regressions}</p>;
                   })}
                   <p className="text-[10px] mt-2" style={{ fontFamily: "'VT323', monospace" }}>
                     Minigame fails: {Object.values(runState.interactionState.minigameStats).reduce((sum, item) => sum + item.fails, 0)}
@@ -1193,7 +1208,7 @@ function TourContent() {
 
 export default function TourPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#F5F5DC]"><div className="text-center p-8" style={{ fontFamily: "'Comic Neue', cursive" }}><span className="text-6xl animate-bounce-chaotic inline-block">🎫</span><p className="mt-4 text-xl animate-blink">Loading 18-step hostility engine...</p><div className="progress-lie mt-4 w-48 mx-auto"><div className="progress-lie-fill" style={{ width: '97%' }} /><div className="progress-lie-text">97%</div></div></div></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#F5F5DC]"><div className="text-center p-8" style={{ fontFamily: "'Comic Neue', cursive" }}><span className="text-6xl animate-bounce-chaotic inline-block">🎫</span><p className="mt-4 text-xl animate-blink">Loading maximum hostility engine...</p><div className="progress-lie mt-4 w-48 mx-auto"><div className="progress-lie-fill" style={{ width: '97%' }} /><div className="progress-lie-text">97%</div></div></div></div>}>
       <TourContent />
     </Suspense>
   );

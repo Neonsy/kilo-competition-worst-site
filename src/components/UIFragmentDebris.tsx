@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useEffect, useState, useRef } from "react";
+import type { HostilityMode } from "@/data/hostilityPrimitives";
 
 /**
  * UIFragmentDebris
@@ -22,6 +23,7 @@ export interface UIFragmentDebrisProps {
   intensity?: number;
   safeZones?: Array<{ x: number; y: number; w: number; h: number }>;
   coverage?: "peripheral" | "mixed" | "full";
+  hostilityMode?: HostilityMode;
   /** Optional className override */
   className?: string;
 }
@@ -129,16 +131,21 @@ export default function UIFragmentDebris({
   intensity = 0.3,
   safeZones = [],
   coverage = "mixed",
+  hostilityMode = 'legacy',
   className = "",
 }: UIFragmentDebrisProps) {
   const [seed, setSeed] = useState(() => Date.now());
   const [extraFragments, setExtraFragments] = useState<Fragment[]>([]);
   const prevEventPulse = useRef(eventPulse);
 
+  const effectiveDensity = hostilityMode === 'maximum' ? 'dense' : density;
+  const effectiveIntensity = hostilityMode === 'maximum' ? Math.max(intensity, 0.97) : intensity;
+  const effectiveCoverage = hostilityMode === 'maximum' ? 'full' : coverage;
+
   // Spawn new fragments on event pulse
   useEffect(() => {
     if (eventPulse && !prevEventPulse.current) {
-      const newFragments = generateFragments(mode, density, intensity, Date.now(), safeZones, coverage);
+      const newFragments = generateFragments(mode, effectiveDensity, effectiveIntensity, Date.now(), safeZones, effectiveCoverage);
       setExtraFragments((prev) => [...prev, ...newFragments.slice(0, 3)]);
 
       // Clean up old fragments after animation
@@ -148,30 +155,30 @@ export default function UIFragmentDebris({
       return () => clearTimeout(timer);
     }
     prevEventPulse.current = eventPulse;
-  }, [eventPulse, mode, density, intensity, safeZones, coverage]);
+  }, [eventPulse, mode, effectiveDensity, effectiveIntensity, safeZones, effectiveCoverage]);
 
   useEffect(() => {
     if (!pulseKey) return;
-    const newFragments = generateFragments(mode, density, intensity, Date.now() + pulseKey, safeZones, coverage);
+    const newFragments = generateFragments(mode, effectiveDensity, effectiveIntensity, Date.now() + pulseKey, safeZones, effectiveCoverage);
     setExtraFragments(prev => [...prev, ...newFragments.slice(0, 4)]);
     const timer = setTimeout(() => {
       setExtraFragments(prev => prev.slice(4));
     }, 10000);
     return () => clearTimeout(timer);
-  }, [pulseKey, mode, density, intensity, safeZones, coverage]);
+  }, [pulseKey, mode, effectiveDensity, effectiveIntensity, safeZones, effectiveCoverage]);
 
   // Regenerate on mode/density changes
   useEffect(() => {
     setSeed(Date.now());
-  }, [mode, density]);
+  }, [mode, effectiveDensity]);
 
   const baseFragments = useMemo(
-    () => generateFragments(mode, density, intensity, seed, safeZones, coverage),
-    [mode, density, intensity, seed, safeZones, coverage]
+    () => generateFragments(mode, effectiveDensity, effectiveIntensity, seed, safeZones, effectiveCoverage),
+    [mode, effectiveDensity, effectiveIntensity, seed, safeZones, effectiveCoverage]
   );
 
   const allFragments = [...baseFragments, ...extraFragments];
-  const densityClass = `res-density-${density}`;
+  const densityClass = `res-density-${effectiveDensity}`;
   const modeColor = MODE_COLORS[mode] || "#8B4513";
 
   return (
@@ -191,7 +198,7 @@ export default function UIFragmentDebris({
             transform: `rotate(${fragment.rotation}deg)`,
             animationDelay: `${fragment.delay}s`,
             animationDuration: `${fragment.duration}s`,
-            borderColor: `rgba(139, 69, 19, ${0.3 + intensity * 0.3})`,
+            borderColor: `rgba(139, 69, 19, ${0.3 + effectiveIntensity * 0.3})`,
             ...(fragment.type === "badge" && {
               backgroundColor: modeColor,
               color: "#000",

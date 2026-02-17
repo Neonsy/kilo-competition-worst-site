@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { HostilityPhase, hostilityPrimitives, randomInRange } from '@/data/hostilityPrimitives';
+import { HostilityMode, HostilityPhase, hostilityPrimitives, randomInRange } from '@/data/hostilityPrimitives';
 
 interface FakeBrowserChromeProps {
   phase?: HostilityPhase;
   mode?: 'tour' | 'home' | 'exhibits';
   noiseLevel?: number;
+  hostilityMode?: HostilityMode;
   onIncident?: (line: string) => void;
 }
 
@@ -22,15 +23,17 @@ export function FakeBrowserChrome({
   phase = 1,
   mode = 'home',
   noiseLevel = 0,
+  hostilityMode = 'legacy',
   onIncident,
 }: FakeBrowserChromeProps) {
   const chromeRules = hostilityPrimitives.chromeRules;
+  const effectivePhase: HostilityPhase = hostilityMode === 'maximum' ? 3 : phase;
   const [activeTab, setActiveTab] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [maskUntil, setMaskUntil] = useState(0);
   const [tick, setTick] = useState(Date.now());
 
-  const noise = useMemo(() => chromeRules.chromeNoiseByPhase[phase] + Math.min(noiseLevel * 0.02, 0.12), [chromeRules.chromeNoiseByPhase, noiseLevel, phase]);
+  const noise = useMemo(() => chromeRules.chromeNoiseByPhase[effectivePhase] + Math.min(noiseLevel * 0.02, 0.12), [chromeRules.chromeNoiseByPhase, effectivePhase, noiseLevel]);
 
   useEffect(() => {
     const ticker = setInterval(() => setTick(Date.now()), 250);
@@ -40,13 +43,13 @@ export function FakeBrowserChrome({
   useEffect(() => {
     const rotator = setInterval(() => {
       setActiveTab(prev => (prev + 1) % fakeTabs.length);
-      if (Math.random() < chromeRules.fakeControlChance[phase] * 0.4) {
+      if (Math.random() < chromeRules.fakeControlChance[effectivePhase] * 0.4) {
         const duration = randomInRange(chromeRules.interruptionWindowMs[0], chromeRules.interruptionWindowMs[1]);
         setMaskUntil(Date.now() + duration);
       }
-    }, Math.max(2200, 4800 - phase * 900));
+    }, Math.max(2200, 4800 - effectivePhase * 900));
     return () => clearInterval(rotator);
-  }, [chromeRules.fakeControlChance, chromeRules.interruptionWindowMs, phase]);
+  }, [chromeRules.fakeControlChance, chromeRules.interruptionWindowMs, effectivePhase]);
 
   const fireFakeAction = (action: string) => {
     const lines = [
@@ -61,7 +64,7 @@ export function FakeBrowserChrome({
   };
 
   return (
-    <div className={`fake-browser-chrome phase-${phase}`} aria-hidden>
+    <div className={`fake-browser-chrome phase-${effectivePhase}`} aria-hidden>
       <div className="fake-browser-tabs">
         {fakeTabs.map((tab, index) => (
           <span key={tab} className={`fake-browser-tab ${index === activeTab ? 'active' : ''}`}>

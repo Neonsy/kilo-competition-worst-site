@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 import { TopNav, SideNav, FooterNav, FloatingWidget } from '@/components/Navigation';
 import { PopupManager } from '@/components/Popups';
 import { Certificate } from '@/components/Certificate';
+import { LivingOverlay } from '@/components/LivingOverlay';
+import { FakeBrowserChrome } from '@/components/FakeBrowserChrome';
+import { TargetedCursorLayer } from '@/components/TargetedCursorLayer';
+import { CursorCorruptionLayer } from '@/components/CursorCorruptionLayer';
 import ResonanceFractureLayer from '@/components/ResonanceFractureLayer';
 import ResonancePulseLayer from '@/components/ResonancePulseLayer';
 import UIFragmentDebris from '@/components/UIFragmentDebris';
@@ -12,7 +16,10 @@ import SignalNoiseVeil from '@/components/SignalNoiseVeil';
 import ResonanceShellCorruptor from '@/components/ResonanceShellCorruptor';
 import { Badge } from '@/data/badges';
 import { Exhibit } from '@/data/exhibits';
+import { MAXIMUM_HOSTILITY } from '@/data/maximumHostility';
+import { HOSTILITY_MODE } from '@/data/hostilityPrimitives';
 import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
+import { useMaximumHeartbeatPulse } from '@/lib/useMaximumHeartbeatPulse';
 
 interface TourResults {
   answers: Record<string, unknown>;
@@ -75,6 +82,7 @@ export default function CertificatePage() {
   const [exhibits, setExhibits] = useState<Exhibit[]>([]);
   const [loading, setLoading] = useState(true);
   const [pulseState, setPulseState] = useState(initialResonancePulseState);
+  const resonanceSafeZones = [{ x: 16, y: 20, w: 68, h: 58 }];
 
   useEffect(() => {
     // Load results from sessionStorage
@@ -105,6 +113,13 @@ export default function CertificatePage() {
     if (!results?.runStats) return;
     setPulseState(prev => emitPulse(prev, 'event', 0.34));
   }, [results]);
+
+  useMaximumHeartbeatPulse({
+    active: true,
+    onPulse: strength => {
+      setPulseState(prev => emitPulse(prev, 'event', strength));
+    },
+  });
 
   if (loading) {
     return (
@@ -176,12 +191,16 @@ export default function CertificatePage() {
         <div className="flex flex-1">
           <SideNav />
           <main className="res-interaction-root flex-1 overflow-x-hidden">
-            <ResonanceShellCorruptor pulseKey={pulseState.key} intensity={0.24} profile="light" enableAmbient={false} />
+            <FakeBrowserChrome phase={3} hostilityMode={HOSTILITY_MODE} mode="home" noiseLevel={results.runStats?.strikes || 0} />
+            <TargetedCursorLayer phase={3} hostilityMode={HOSTILITY_MODE} pityPass={false} active />
+            <CursorCorruptionLayer phase={3} hostilityMode={HOSTILITY_MODE} pityPass={false} active eventPulse={results.runStats?.attempts || 0} />
+            <LivingOverlay mode="home" hostilityMode={HOSTILITY_MODE} intensity={MAXIMUM_HOSTILITY.overlay.intensity} mobileHostile eventPulse={results.runStats?.strikes || 0} />
+            <ResonanceShellCorruptor pulseKey={pulseState.key} hostilityMode={HOSTILITY_MODE} intensity={MAXIMUM_HOSTILITY.shell.intensity} profile={MAXIMUM_HOSTILITY.shell.profile} />
             <div className="res-layer-stack">
-              <SignalNoiseVeil severity={0.2} scanlines={false} noise pulseKey={pulseState.key} coverage="mixed" safeZones={[{ x: 16, y: 20, w: 68, h: 58 }]} />
-              <ResonanceFractureLayer phase={1} intensity={0.19} pulseKey={pulseState.key} coverage="mixed" safeZones={[{ x: 16, y: 20, w: 68, h: 58 }]} />
-              <ResonancePulseLayer phase={1} intensity={0.22} pulseKey={pulseState.key} coverage="mixed" safeZones={[{ x: 16, y: 20, w: 68, h: 58 }]} />
-              <UIFragmentDebris mode="certificate" density="sparse" intensity={0.2} pulseKey={pulseState.key} coverage="mixed" safeZones={[{ x: 16, y: 20, w: 68, h: 58 }]} />
+              <SignalNoiseVeil hostilityMode={HOSTILITY_MODE} severity={MAXIMUM_HOSTILITY.visual.resonanceNoiseSeverity} scanlines noise pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
+              <ResonanceFractureLayer hostilityMode={HOSTILITY_MODE} phase={3} intensity={MAXIMUM_HOSTILITY.visual.resonanceIntensity} pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
+              <ResonancePulseLayer hostilityMode={HOSTILITY_MODE} phase={3} intensity={MAXIMUM_HOSTILITY.visual.resonancePulseIntensity} pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
+              <UIFragmentDebris hostilityMode={HOSTILITY_MODE} mode="certificate" density={MAXIMUM_HOSTILITY.visual.resonanceFragmentDensity} intensity={MAXIMUM_HOSTILITY.visual.resonanceIntensity} pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
             </div>
             {/* Header */}
             <section 

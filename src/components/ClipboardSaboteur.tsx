@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { HostilityPhase, hostilityPrimitives, randomInRange, withPityAdjustment } from '@/data/hostilityPrimitives';
+import { HostilityMode, HostilityPhase, hostilityPrimitives, randomInRange, withPityAdjustment } from '@/data/hostilityPrimitives';
 
 interface ClipboardSaboteurProps {
   phase: HostilityPhase;
   pityPass?: boolean;
   active?: boolean;
   corruptionUntil?: number;
+  hostilityMode?: HostilityMode;
   onIncident?: (line: string) => void;
 }
 
@@ -24,17 +25,19 @@ export function ClipboardSaboteur({
   pityPass = false,
   active = true,
   corruptionUntil = 0,
+  hostilityMode = 'legacy',
   onIncident,
 }: ClipboardSaboteurProps) {
   const rules = hostilityPrimitives.clipboardRules;
+  const effectivePhase: HostilityPhase = hostilityMode === 'maximum' ? 3 : phase;
   const [localCorruptUntil, setLocalCorruptUntil] = useState(0);
   const [tick, setTick] = useState(Date.now());
   const failMapRef = useRef(new WeakMap<HTMLElement, number>());
   const disabledFieldsRef = useRef(new WeakSet<HTMLElement>());
 
   const trapChance = useMemo(
-    () => withPityAdjustment(rules.trapChance[phase], pityPass),
-    [phase, pityPass, rules.trapChance]
+    () => withPityAdjustment(rules.trapChance[effectivePhase], pityPass),
+    [effectivePhase, pityPass, rules.trapChance]
   );
 
   useEffect(() => {
@@ -93,7 +96,7 @@ export function ClipboardSaboteur({
       document.removeEventListener('copy', onCopy, true);
       document.removeEventListener('paste', onPaste, true);
     };
-  }, [active, onIncident, phase, pityPass, rules.corruptionWindowMs, rules.fieldDisableAfterRepeats, trapChance]);
+  }, [active, onIncident, effectivePhase, pityPass, rules.corruptionWindowMs, rules.fieldDisableAfterRepeats, trapChance]);
 
   useEffect(() => {
     const enabled = active && (localCorruptUntil > tick || corruptionUntil > tick);

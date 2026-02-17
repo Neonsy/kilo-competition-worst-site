@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { HostilityPhase, hostilityPrimitives, randomInRange, withPityAdjustment } from '@/data/hostilityPrimitives';
+import { HostilityMode, HostilityPhase, hostilityPrimitives, randomInRange, withPityAdjustment } from '@/data/hostilityPrimitives';
 
 type CursorPersona = 'pointer' | 'text' | 'wait' | 'not-allowed' | 'crosshair';
 
@@ -10,6 +10,7 @@ interface CursorCorruptionLayerProps {
   pityPass?: boolean;
   active?: boolean;
   eventPulse?: number;
+  hostilityMode?: HostilityMode;
   onIncident?: (line: string) => void;
 }
 
@@ -38,12 +39,14 @@ export function CursorCorruptionLayer({
   pityPass = false,
   active = true,
   eventPulse = 0,
+  hostilityMode = 'legacy',
   onIncident,
 }: CursorCorruptionLayerProps) {
   const rules = hostilityPrimitives.cursorGlobalRules;
+  const effectivePhase: HostilityPhase = hostilityMode === 'maximum' ? 3 : phase;
   const [position, setPosition] = useState<CursorPosition>({ x: -100, y: -100 });
   const [renderPosition, setRenderPosition] = useState<CursorPosition>({ x: -100, y: -100 });
-  const [persona, setPersona] = useState<CursorPersona>(rules.baseModeByPhase[phase]);
+  const [persona, setPersona] = useState<CursorPersona>(rules.baseModeByPhase[effectivePhase]);
   const [desyncUntil, setDesyncUntil] = useState(0);
   const [jitterUntil, setJitterUntil] = useState(0);
   const [tick, setTick] = useState(Date.now());
@@ -51,14 +54,14 @@ export function CursorCorruptionLayer({
   const relaxUntilRef = useRef(0);
 
   const misclassificationChance = useMemo(
-    () => withPityAdjustment(rules.misclassificationChance[phase], pityPass),
-    [phase, pityPass, rules.misclassificationChance]
+    () => withPityAdjustment(rules.misclassificationChance[effectivePhase], pityPass),
+    [effectivePhase, pityPass, rules.misclassificationChance]
   );
   const desyncChance = useMemo(
-    () => withPityAdjustment(rules.desyncChanceByPhase[phase] + Math.min(eventPulse * 0.004, 0.08), pityPass),
-    [eventPulse, phase, pityPass, rules.desyncChanceByPhase]
+    () => withPityAdjustment(rules.desyncChanceByPhase[effectivePhase] + Math.min(eventPulse * 0.004, 0.08), pityPass),
+    [effectivePhase, eventPulse, pityPass, rules.desyncChanceByPhase]
   );
-  const jitterPx = useMemo(() => Math.max(1, pityPass ? Math.floor(rules.jitterPxByPhase[phase] / 2) : rules.jitterPxByPhase[phase]), [phase, pityPass, rules.jitterPxByPhase]);
+  const jitterPx = useMemo(() => Math.max(1, pityPass ? Math.floor(rules.jitterPxByPhase[effectivePhase] / 2) : rules.jitterPxByPhase[effectivePhase]), [effectivePhase, pityPass, rules.jitterPxByPhase]);
 
   useEffect(() => {
     const timer = setInterval(() => setTick(Date.now()), 120);
@@ -150,7 +153,7 @@ export function CursorCorruptionLayer({
 
   if (!active) return null;
 
-  const ghosts = Array.from({ length: rules.ghostCursorCountByPhase[phase] }).map((_, index) => {
+  const ghosts = Array.from({ length: rules.ghostCursorCountByPhase[effectivePhase] }).map((_, index) => {
     const offset = (index + 1) * 10;
     return {
       x: renderPosition.x - offset,
@@ -181,4 +184,3 @@ export function CursorCorruptionLayer({
 }
 
 export default CursorCorruptionLayer;
-

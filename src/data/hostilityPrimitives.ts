@@ -1,4 +1,8 @@
+import { fixedPhaseRecord, MAXIMUM_HOSTILITY } from '@/data/maximumHostility';
+
 export type HostilityPhase = 1 | 2 | 3;
+export type HostilityMode = 'legacy' | 'maximum';
+export const HOSTILITY_MODE: HostilityMode = 'maximum';
 
 export interface CursorTrapZone {
   id: string;
@@ -78,8 +82,8 @@ export const hostilityPrimitives: HostilityPrimitiveConfig = {
         '[data-trap-zone] input[type="submit"]',
         '[data-trap-zone] input[type="button"]',
       ],
-      activationProbability: { 1: 0.16, 2: 0.28, 3: 0.39 },
-      hotspotOffsetPx: { 1: 2, 2: 4, 3: 6 },
+      activationProbability: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.cursorTrap),
+      hotspotOffsetPx: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.cursorHotspotOffset),
       lagWindowMs: [120, 260],
       mobileDelayMs: [120, 350],
       failDisableThreshold: 3,
@@ -87,46 +91,46 @@ export const hostilityPrimitives: HostilityPrimitiveConfig = {
     },
   ],
   focusTrapRules: {
-    sabotageChance: { 1: 0.1, 2: 0.18, 3: 0.27 },
+    sabotageChance: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.focusSabotage),
     enterRetryWindowMs: 3500,
     struggleThreshold: 2,
     struggleCooldownMs: 8000,
   },
   clipboardRules: {
-    trapChance: { 1: 0.08, 2: 0.15, 3: 0.24 },
+    trapChance: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.clipboardTrap),
     corruptionWindowMs: [900, 2200],
     fieldDisableAfterRepeats: 2,
   },
   dragRules: {
-    frictionMultiplier: { 1: 1.15, 2: 1.35, 3: 1.55 },
-    snapBackChance: { 1: 0.08, 2: 0.14, 3: 0.2 },
+    frictionMultiplier: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.dragFriction),
+    snapBackChance: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.dragSnapBack),
     maxSnapBackPerInteraction: 1,
     retryRelaxationThreshold: 2,
   },
   chromeRules: {
-    chromeNoiseByPhase: { 1: 0.3, 2: 0.55, 3: 0.82 },
+    chromeNoiseByPhase: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.chromeNoise),
     interruptionWindowMs: [700, 1500],
-    fakeControlChance: { 1: 0.16, 2: 0.25, 3: 0.35 },
+    fakeControlChance: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.chromeFakeControl),
   },
   cursorGlobalRules: {
-    baseModeByPhase: { 1: 'pointer', 2: 'wait', 3: 'crosshair' },
-    misclassificationChance: { 1: 0.32, 2: 0.48, 3: 0.64 },
-    jitterPxByPhase: { 1: 2, 2: 4, 3: 7 },
+    baseModeByPhase: { 1: 'crosshair', 2: 'crosshair', 3: 'crosshair' },
+    misclassificationChance: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.cursorMisclassification),
+    jitterPxByPhase: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.cursorHotspotOffset),
     driftMsRange: [90, 210],
-    ghostCursorCountByPhase: { 1: 1, 2: 2, 3: 3 },
-    desyncChanceByPhase: { 1: 0.14, 2: 0.24, 3: 0.36 },
+    ghostCursorCountByPhase: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.cursorGhostCount),
+    desyncChanceByPhase: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.cursorDesync),
     globalRelaxAfterFails: 3,
   },
   loadingLabyrinthRules: {
     stageDurationsMs: {
-      1: [280, 520],
-      2: [340, 620],
-      3: [430, 760],
+      1: MAXIMUM_HOSTILITY.primitives.loadingStageDurationMs,
+      2: MAXIMUM_HOSTILITY.primitives.loadingStageDurationMs,
+      3: MAXIMUM_HOSTILITY.primitives.loadingStageDurationMs,
     },
-    loopChanceByPhase: { 1: 0.22, 2: 0.34, 3: 0.46 },
-    falseCompleteChanceByPhase: { 1: 0.18, 2: 0.29, 3: 0.41 },
-    regressionChanceByPhase: { 1: 0.1, 2: 0.18, 3: 0.27 },
-    stallChanceByPhase: { 1: 0.15, 2: 0.25, 3: 0.33 },
+    loopChanceByPhase: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.loadingLoop),
+    falseCompleteChanceByPhase: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.loadingFalseComplete),
+    regressionChanceByPhase: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.loadingRegression),
+    stallChanceByPhase: fixedPhaseRecord(MAXIMUM_HOSTILITY.primitives.loadingStall),
     rageCooldownMs: 18000,
     pityBypassAfterLoops: 4,
   },

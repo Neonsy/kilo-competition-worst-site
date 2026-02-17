@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useEffect, useState, useRef } from "react";
+import type { HostilityMode } from "@/data/hostilityPrimitives";
 
 /**
  * ResonanceFractureLayer
@@ -21,6 +22,7 @@ export interface ResonanceFractureLayerProps {
   eventPulse?: boolean;
   safeZones?: Array<{ x: number; y: number; w: number; h: number }>;
   coverage?: "peripheral" | "mixed" | "full";
+  hostilityMode?: HostilityMode;
   /** Optional className override */
   className?: string;
 }
@@ -150,6 +152,7 @@ export default function ResonanceFractureLayer({
   eventPulse = false,
   safeZones = [],
   coverage = "mixed",
+  hostilityMode = 'legacy',
   className = "",
 }: ResonanceFractureLayerProps) {
   const [seed, setSeed] = useState(() => Date.now());
@@ -182,12 +185,16 @@ export default function ResonanceFractureLayer({
     return () => clearTimeout(timer);
   }, [pulseKey]);
 
+  const effectivePhase = hostilityMode === 'maximum' ? 3 : phase;
+  const effectiveIntensity = hostilityMode === 'maximum' ? Math.max(intensity, 0.97) : intensity;
+  const effectiveCoverage = hostilityMode === 'maximum' ? 'full' : coverage;
+
   const fractures = useMemo(
-    () => generateFractures(phase, intensity, seed, safeZones, coverage),
-    [phase, intensity, seed, safeZones, coverage]
+    () => generateFractures(effectivePhase, effectiveIntensity, seed, safeZones, effectiveCoverage),
+    [effectivePhase, effectiveIntensity, seed, safeZones, effectiveCoverage]
   );
 
-  const intensityClass = getIntensityClass(intensity);
+  const intensityClass = getIntensityClass(effectiveIntensity);
   const pulseClass = pulseKey > 0 || eventPulse ? "res-event-pulse" : "";
 
   if (!visible) return null;

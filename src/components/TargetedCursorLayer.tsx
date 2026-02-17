@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { HostilityPhase, hostilityPrimitives, randomInRange, withPityAdjustment } from '@/data/hostilityPrimitives';
+import { HostilityMode, HostilityPhase, hostilityPrimitives, randomInRange, withPityAdjustment } from '@/data/hostilityPrimitives';
 
 interface CursorDecoyState {
   visible: boolean;
@@ -17,6 +17,7 @@ interface TargetedCursorLayerProps {
   active?: boolean;
   offsetBoost?: number;
   chanceBoost?: number;
+  hostilityMode?: HostilityMode;
   onIncident?: (line: string) => void;
 }
 
@@ -44,6 +45,7 @@ export function TargetedCursorLayer({
   active = true,
   offsetBoost = 0,
   chanceBoost = 0,
+  hostilityMode = 'legacy',
   onIncident,
 }: TargetedCursorLayerProps) {
   const zoneConfig = hostilityPrimitives.cursorTrapZones[0];
@@ -59,13 +61,14 @@ export function TargetedCursorLayer({
   const mobileBypassRef = useRef<WeakSet<HTMLElement>>(new WeakSet());
   const hideTimerRef = useRef<number | null>(null);
 
+  const effectivePhase: HostilityPhase = hostilityMode === 'maximum' ? 3 : phase;
   const trapChance = useMemo(
-    () => Math.min(0.92, withPityAdjustment(zoneConfig.activationProbability[phase], pityPass) + chanceBoost),
-    [chanceBoost, phase, pityPass, zoneConfig.activationProbability]
+    () => Math.min(0.92, withPityAdjustment(zoneConfig.activationProbability[effectivePhase], pityPass) + chanceBoost),
+    [chanceBoost, effectivePhase, pityPass, zoneConfig.activationProbability]
   );
   const hotspotOffset = useMemo(
-    () => Math.max(1, (pityPass ? Math.max(1, Math.floor(zoneConfig.hotspotOffsetPx[phase] / 2)) : zoneConfig.hotspotOffsetPx[phase]) + offsetBoost),
-    [offsetBoost, phase, pityPass, zoneConfig.hotspotOffsetPx]
+    () => Math.max(1, (pityPass ? Math.max(1, Math.floor(zoneConfig.hotspotOffsetPx[effectivePhase] / 2)) : zoneConfig.hotspotOffsetPx[effectivePhase]) + offsetBoost),
+    [effectivePhase, offsetBoost, pityPass, zoneConfig.hotspotOffsetPx]
   );
 
   useEffect(() => {

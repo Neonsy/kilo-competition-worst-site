@@ -73,9 +73,14 @@ src/
     - skin roulette state (`themeSeed`, `activeSkinMap`, `mutationCooldownUntil`)
     - minigame telemetry (`minigameStats`, interruption count)
   - `recovery tokens`, `pity-pass threshold`, `hard regression cap`
-- Event scheduling uses `tourEvents.ts` with phase-aware probabilities and cooldowns.
+- Event scheduling in maximum mode uses `scheduleTourEventMaximum(...)` from `tourEvents.ts` (trigger/cooldown-based, ignores phase).
+- Hostility constants are centralized in `src/data/maximumHostility.ts` and reused across routes/components.
 - Primitive runtime behavior uses `hostilityPrimitives.ts` defaults and reducer/event hooks.
+- Hostility mode contract:
+  - `HOSTILITY_MODE = 'maximum'` in `hostilityPrimitives.ts`
+  - existing phase-shaped interfaces retained for compatibility, but phase maps are normalized to identical max values.
 - Resonance visuals use a timestamp pulse bus (`resonancePulseBus.ts`) and `pulseKey` props so bursts retrigger on every hostile incident rather than one-shot boolean gates.
+- Continuous heartbeat pulses (`useMaximumHeartbeatPulse`) run on all major routes and emit pulses even while idle.
 - Layering contract keeps visuals readable and interactive:
   - `.res-layer-stack` renders resonance overlays above shells (`.res-shell`)
   - `.res-control-safe` keeps primary controls above resonance overlays
@@ -86,10 +91,7 @@ src/
   - Step 6: Bureaucracy Queue
   - Step 11: Maze of Consent
   - Step 16: Captcha Gauntlet
-- Escalation phases:
-  - Phase 1: orientation chaos
-  - Phase 2: compounding penalties
-  - Phase 3: maximum hostility
+- Escalation phase fields remain in data/types for compatibility only; runtime currently operates in a phase-free maximum mode.
 
 ## Key Design Patterns
 

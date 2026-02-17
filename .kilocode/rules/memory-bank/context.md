@@ -2,7 +2,7 @@
 
 ## Current State
 
-**Project Status**: ✅ COMPLETE - Ultra-Hostility V3 implemented (18-step tour + required triple minigames + global cursor corruption + loading labyrinth + per-module design roulette), while preserving one completion path. Resonance visual layer now uses pulse-bus retriggers and a control-safe z-layer contract so the "intrusive thought" effects stay visible and eventful.
+**Project Status**: ✅ COMPLETE - Ultra-Hostility V3 + Maximum Hostility Everywhere mode implemented (phase-free fixed max values across all routes), while preserving one completion path.
 
 A deliberately awful website that masquerades as an interactive museum of terrible ideas. The core functionality (Tour Wizard) works perfectly while every aspect of UX/UI is designed to frustrate, confuse, and amuse users.
 
@@ -65,6 +65,35 @@ A deliberately awful website that masquerades as an interactive museum of terrib
   - Added profile-scaled intensity amplification for `light`/`medium`
   - Increased Settings resonance baseline and reduced safe-zone footprint in `src/app/settings/page.tsx`
   - Expanded Settings shell corruption coverage by marking the settings grid section as `res-shell`
+- [x] Maximum Hostility Everywhere pass (phase-free, no scaling):
+  - Added `src/data/maximumHostility.ts` fixed constants and `src/lib/useMaximumHeartbeatPulse.ts`
+  - Added `HOSTILITY_MODE = 'maximum'` and normalized primitive phase maps to identical max values
+  - Tour now uses `scheduleTourEventMaximum(...)` and fixed max chances/lockouts/penalty additive
+  - Removed phase-based runtime scaling from tour visuals/interactions and UI copy
+  - Home/Exhibits/Help/Settings/Certificate all wired to maximum mode overlays/cursor/shell layers
+  - Living overlay gained center-cross rift bands + fracture notices; shell break/halo contrast strengthened in CSS
+- [x] Dark Weird Palette pass:
+  - Replaced bright global palette variables with darker, muddy neon tones in `src/app/globals.css`
+  - Added global void tint/fog layers (`body::before/::after`) and muted rainbow cycles
+  - Added override map for common hardcoded Tailwind arbitrary bright classes (bg/border/text)
+  - Darkened hardcoded navigation colors in `src/components/Navigation.tsx` (top/side/footer/floating)
+- [x] Readability rollback (~15%):
+  - Reduced opacity/intensity of global fog and scanline blockers
+  - Moved `.res-interaction-root` tint overlays behind shell/content layer (`z-index: 9`)
+  - Slightly increased base text luminance while preserving dark/weird tone
+- [x] Popup diversity expansion:
+  - `PopupManager` now supports popup stacking (up to 3 concurrent) instead of single-popup lock
+  - Added multiple popup skins (`classic`, `terminal`, `hazard`, `sticky`) with distinct visuals
+  - Added multiple popup interactions (`countdown`, `confirm-twice`, `teleport-button`) in addition to existing annoying/impossible behavior
+  - Added stacked toast handling and increased spawn chaining/trigger density
+- [x] Favicon source update:
+  - Updated `src/app/layout.tsx` metadata icons to use `https://upload.wikimedia.org/wikipedia/commons/c/c4/Icon_Error.png` for icon/shortcut/apple
+- [x] Global annoyance additions:
+  - Added `src/components/AnnoyingSoundscape.tsx` for random auto-playing WebAudio error beeps/buzz/glitch chirps
+  - Added `src/components/MysteryMeatNav.tsx` for icon-only ambiguous navigation with reroute/deny behavior
+  - Wired both globally in `src/app/layout.tsx` and added styles in `src/app/globals.css`
+  - Tuned soundscape cadence for higher annoyance: shorter random intervals + burst clusters and slight gain jitter
+  - Expanded sound variety with additional alarm/modem/static/click patterns and increased loudness range with compressor safety
 
 ## Current Structure
 
@@ -95,8 +124,8 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 - Navigation in 4 places with different labels
 - Navigation links occasionally redirect to wrong pages
 - Fake menu items that go nowhere
-- Phase-based tour penalties: strikes, lockouts, freeze bursts, regressions, input corruption
-- Targeted cursor traps in critical zones with phase offsets (2px/4px/6px), decoy cursor, and mobile tap delay
+- Phase-free fixed-max tour penalties: strikes, lockouts, freeze bursts, regressions, input corruption
+- Targeted cursor traps in critical zones with fixed max offset (8px), decoy cursor, and mobile tap delay
 - Fake browser chrome with deceptive controls, noise ribbons, and short-lived interruption masks
 - Focus sabotage (drift + Enter reroute + temporary decoy tab targets) with struggle cooldown guardrails
 - Clipboard traps (copy suffix perturbation + paste mismatch windows) with per-field disable safety valve
@@ -107,7 +136,7 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 - Aggressive popups with exit-intent/scroll triggers and follow-up chains
 
 ### Core Feature (Functional)
-- 18-question Tour Wizard (3 phases, escalating hostility + required minigames)
+- 18-question Tour Wizard (phase-free max hostility + required minigames)
 - Tour remains finishable with explicit guardrails (max hard regressions + pity pass threshold)
 - Personalized tour route generation
 - Nonsensical Regret Score calculation (0-10,000)
@@ -127,3 +156,11 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 | 2026-02-17 | Resonance Fix merge pass: timestamp pulse bus retriggers, z-layer contract (above shells/below controls), stronger mixed-coverage fractures/debris, and per-page `pulseKey` wiring |
 | 2026-02-17 | Resonance Shell Corruption pass: actual shell break-and-repair animations with organic ambient twitches and control-safe halo pulses |
 | 2026-02-17 | Resonance light-profile tuning: stronger light shell effects and broader settings-page shell coverage |
+| 2026-02-17 | Maximum Hostility Everywhere pass: phase-free fixed max values, tour event scheduler swap (`scheduleTourEventMaximum`), route-wide heartbeat + max resonance/overlay/cursor wiring |
+| 2026-02-17 | Dark weird visual retune: global palette inversion from bright pastel to muddy-dark tones plus nav hardcoded color replacement and full-page void tint overlays |
+| 2026-02-17 | Minor readability rollback: reduced global blocker strength and moved route tint overlays below content to recover legibility without reverting theme |
+| 2026-02-17 | Popup pass: introduced concurrent popup stack, skin variants, and new interaction mechanics for more varied hostile interruptions |
+| 2026-02-17 | Favicon switched to Wikimedia error icon URL via metadata |
+| 2026-02-17 | Added global random annoying soundscape and fixed-position mystery-meat glyph navigation |
+| 2026-02-17 | Increased soundscape trigger frequency and added random burst clusters |
+| 2026-02-17 | Expanded sound palette to 8 SFX patterns and raised output level with compression |

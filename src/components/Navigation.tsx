@@ -50,12 +50,12 @@ export function TopNav() {
 
   return (
     <nav 
-      className="w-full bg-gradient-to-r from-[#39FF14] via-[#FF69B4] to-[#00FFFF] border-b-4 border-double border-[#8B4513]"
+      className="w-full bg-gradient-to-r from-[#263419] via-[#3d1c36] to-[#17343a] border-b-4 border-double border-[#3a2315]"
       style={{ fontFamily: "'Arial Black', sans-serif" }}
     >
       {/* Marquee banner */}
-      <div className="marquee-container bg-[#7BA05B] border-b-2 border-dashed-[#8B4513]">
-        <div className="marquee-content font-comic text-[#8B4513]">
+      <div className="marquee-container bg-[#2d3e21] border-b-2 border-dashed-[#3a2315]">
+        <div className="marquee-content font-comic text-[#8f8576]">
           ⚠️ WELCOME TO THE MUSEUM OF BAD DECISIONS ⚠️ Your presence has been registered ⚠️ 
           By viewing this banner you agree to our terms ⚠️ NO REFUNDS ⚠️ 
           Best viewed in Internet Explorer 6 ⚠️ You are visitor #8,472,910 ⚠️
@@ -71,7 +71,7 @@ export function TopNav() {
         >
           <span className="text-4xl animate-bounce-chaotic">🏛️</span>
           <span 
-            className="text-xl font-bold text-[#8B4513] animate-rainbow"
+            className="text-xl font-bold text-[#8f8576] animate-rainbow"
             style={{ fontFamily: "'Bangers', cursive" }}
           >
             MoBD
@@ -94,13 +94,13 @@ export function TopNav() {
               }}
               className={`
                 px-4 py-2 text-sm transition-all duration-100
-                ${index % 2 === 0 ? 'bg-[#FFFF99]' : 'bg-[#E6E6FA]'}
-                ${index === 0 ? 'border-2 border-dotted border-[#FF0000]' : ''}
-                ${index === 1 ? 'border-4 border-double border-[#00FF00]' : ''}
-                ${index === 2 ? 'border-3 border-solid border-[#0000FF] rounded-full' : ''}
+                ${index % 2 === 0 ? 'bg-[#453b28]' : 'bg-[#2d2538]'}
+                ${index === 0 ? 'border-2 border-dotted border-[#8a131c]' : ''}
+                ${index === 1 ? 'border-4 border-double border-[#52722a]' : ''}
+                ${index === 2 ? 'border-3 border-solid border-[#2a5f72] rounded-full' : ''}
                 ${index === 3 ? 'bevel-ugly' : ''}
                 ${index === 4 ? 'shadow-ugly' : ''}
-                hover:translate-x-1 hover:bg-[#FF69B4]
+                hover:translate-x-1 hover:bg-[#5b2140]
               `}
               style={{ 
                 fontFamily: index % 3 === 0 ? "'Comic Neue', cursive" : 
@@ -130,7 +130,7 @@ export function TopNav() {
                   alert('404: The page you\'re looking for exists but doesn\'t want to be found.');
                 }
               }}
-              className="px-3 py-1 text-xs text-[#999999] bg-[#AAAAAA] border border-[#999999] cursor-pointer hover:text-[#666666]"
+              className="px-3 py-1 text-xs text-[#7a746e] bg-[#262422] border border-[#595651] cursor-pointer hover:text-[#9e968b]"
               style={{ fontFamily: "'Courier New', monospace" }}
             >
               {item.label}
@@ -147,13 +147,13 @@ export function SideNav() {
 
   return (
     <aside 
-      className="w-48 min-h-screen bg-[#F5F5DC] border-r-8 border-ridge border-[#808080] p-4"
+      className="w-48 min-h-screen bg-[#211d19] border-r-8 border-ridge border-[#3a3530] p-4"
       style={{ fontFamily: "'VT323', monospace" }}
     >
       <div className="mb-6 text-center">
         <span className="text-2xl animate-pulse">📍</span>
         <p 
-          className="text-xs text-[#777777] mt-1"
+          className="text-xs text-[#6f6963] mt-1"
           style={{ fontFamily: "'Comic Neue', cursive" }}
         >
           You are somewhere
@@ -175,11 +175,11 @@ export function SideNav() {
             className={`
               block px-3 py-2 text-lg transition-all
               ${index % 2 === 0 ? 'text-right' : 'text-left'}
-              ${index === 0 ? 'bg-[#39FF14] text-[#8B4513] font-bold' : ''}
-              ${index === 1 ? 'bg-[#FF69B4] text-white' : ''}
-              ${index === 2 ? 'bg-[#00FFFF] text-[#8B4513] animate-wiggle' : ''}
-              ${index === 3 ? 'bg-[#7BA05B] text-[#FFFF99]' : ''}
-              ${index === 4 ? 'bg-[#8B4513] text-[#F5F5DC]' : ''}
+              ${index === 0 ? 'bg-[#3e5522] text-[#9c917f] font-bold' : ''}
+              ${index === 1 ? 'bg-[#5c2142] text-[#d4cdc2]' : ''}
+              ${index === 2 ? 'bg-[#224851] text-[#c9bcab] animate-wiggle' : ''}
+              ${index === 3 ? 'bg-[#36462a] text-[#8d855f]' : ''}
+              ${index === 4 ? 'bg-[#3a2315] text-[#c8beb0]' : ''}
               hover:pl-6 hover:shadow-lg
             `}
             style={{
@@ -226,11 +226,11 @@ export function FooterNav() {
   return (
     <footer 
       id="footer"
-      className="bg-[#8B4513] border-t-4 border-double border-[#39FF14] p-6"
+      className="bg-[#2b1b11] border-t-4 border-double border-[#566e2f] p-6"
       style={{ fontFamily: "'Times New Roman', serif" }}
     >
       {/* Breadcrumbs that lie */}
-      <div className="text-center mb-4 text-[#FFFF99] text-xs">
+      <div className="text-center mb-4 text-[#9a8d63] text-xs">
         <span style={{ fontFamily: "'Courier New', monospace" }}>
           Home &gt; Home &gt; Settings &gt; Tour &gt; Home &gt; You Are Here
         </span>
@@ -249,8 +249,8 @@ export function FooterNav() {
               }
             }}
             className={`
-              px-4 py-2 text-sm text-[#F5F5DC] 
-              hover:text-[#39FF14] transition-colors
+              px-4 py-2 text-sm text-[#c7bfb4] 
+              hover:text-[#8ca54c] transition-colors
               ${index === 2 ? 'animate-blink-fast' : ''}
             `}
             style={{
@@ -278,7 +278,7 @@ export function FooterNav() {
       </div>
       
       {/* Date in different formats */}
-      <div className="text-center mt-4 text-[#999999] text-xs">
+      <div className="text-center mt-4 text-[#726d67] text-xs">
         <span>Last updated: 02/16/2026</span>
         <span className="mx-2">|</span>
         <span>16 Feb 2026</span>
@@ -316,7 +316,7 @@ export function FloatingWidget() {
     >
       {isOpen ? (
         <div 
-          className="bg-[#E6E6FA] border-4 border-outset border-[#808080] p-3 shadow-lg"
+          className="bg-[#2c2537] border-4 border-outset border-[#3a3530] p-3 shadow-lg"
           style={{ fontFamily: "'Comic Neue', cursive" }}
         >
           <div className="flex justify-between items-center mb-2">
@@ -336,8 +336,8 @@ export function FloatingWidget() {
                 href={item.href}
                 className={`
                   block px-2 py-1 text-xs
-                  ${index === 2 ? 'text-[#FF0000] font-bold animate-pulse' : 'text-[#8B4513]'}
-                  hover:bg-[#FFFF99]
+                  ${index === 2 ? 'text-[#8a131c] font-bold animate-pulse' : 'text-[#b4a697]'}
+                  hover:bg-[#413826]
                 `}
                 style={{
                   fontFamily: index % 2 === 0 ? "'Bangers', cursive" : "'Neucha', cursive",
@@ -349,7 +349,7 @@ export function FloatingWidget() {
           </nav>
           
           {/* Fake items in floating menu */}
-          <div className="mt-2 pt-2 border-t border-dashed border-[#808080]">
+          <div className="mt-2 pt-2 border-t border-dashed border-[#3a3530]">
             {fakeItems.slice(2).map((item) => (
               <button
                 key={item.label}
@@ -370,7 +370,7 @@ export function FloatingWidget() {
       ) : (
         <button
           onClick={() => setIsOpen(true)}
-          className="bg-[#FF69B4] text-white px-4 py-2 rounded-full shadow-lg animate-pulse-color hover:animate-shake"
+          className="bg-[#5a2140] text-[#d9d2c8] px-4 py-2 rounded-full shadow-lg animate-pulse-color hover:animate-shake"
           style={{ fontFamily: "'Bangers', cursive" }}
         >
           📍 Menu?

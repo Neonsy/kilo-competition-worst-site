@@ -19,6 +19,9 @@ import { exhibits, exhibitCategories } from '@/data/exhibits';
 import { getRandomDisclaimer } from '@/data/disclaimers';
 import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
 import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
+import { useMaximumHeartbeatPulse } from '@/lib/useMaximumHeartbeatPulse';
+import { MAXIMUM_HOSTILITY } from '@/data/maximumHostility';
+import { HOSTILITY_MODE } from '@/data/hostilityPrimitives';
 
 type ViewMode = 'grid' | 'list' | 'chaos';
 
@@ -74,11 +77,18 @@ export default function ExhibitsPage() {
     setPulseState(prev => emitPulse(prev, 'mutation', 0.56));
   }, [incidentTape, randomSwitches]);
 
-  const resonanceIntensity = Math.min(0.94, 0.5 + incidentTape * 0.025 + randomSwitches * 0.04);
+  const resonanceIntensity = MAXIMUM_HOSTILITY.visual.resonanceIntensity;
   const resonanceSafeZones = [
     { x: 10, y: 22, w: 80, h: 40 },
     { x: 12, y: 64, w: 76, h: 26 },
   ];
+
+  useMaximumHeartbeatPulse({
+    active: true,
+    onPulse: strength => {
+      setPulseState(prev => emitPulse(prev, 'event', strength));
+    },
+  });
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -126,17 +136,17 @@ export default function ExhibitsPage() {
           <SideNav />
           
           <main className={`res-interaction-root relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
-            <FakeBrowserChrome phase={2} mode="exhibits" noiseLevel={incidentTape + randomSwitches * 4} />
-            <TargetedCursorLayer phase={2} pityPass={false} active />
-            <CursorCorruptionLayer phase={2} pityPass={false} active eventPulse={incidentTape + randomSwitches} />
-            <DragFrictionField phase={2} pityPass={false} active resistanceBoost={Math.min(20, incidentTape)} />
-            <LivingOverlay mode="exhibits" intensity="medium" mobileHostile eventPulse={incidentTape + randomSwitches} />
-            <ResonanceShellCorruptor pulseKey={pulseState.key} intensity={resonanceIntensity} profile="medium" />
+            <FakeBrowserChrome phase={3} hostilityMode={HOSTILITY_MODE} mode="exhibits" noiseLevel={incidentTape + randomSwitches * 4} />
+            <TargetedCursorLayer phase={3} hostilityMode={HOSTILITY_MODE} pityPass={false} active />
+            <CursorCorruptionLayer phase={3} hostilityMode={HOSTILITY_MODE} pityPass={false} active eventPulse={incidentTape + randomSwitches} />
+            <DragFrictionField phase={3} hostilityMode={HOSTILITY_MODE} pityPass={false} active resistanceBoost={Math.min(20, incidentTape)} />
+            <LivingOverlay mode="exhibits" hostilityMode={HOSTILITY_MODE} intensity={MAXIMUM_HOSTILITY.overlay.intensity} mobileHostile eventPulse={incidentTape + randomSwitches} />
+            <ResonanceShellCorruptor pulseKey={pulseState.key} hostilityMode={HOSTILITY_MODE} intensity={MAXIMUM_HOSTILITY.shell.intensity} profile={MAXIMUM_HOSTILITY.shell.profile} />
             <div className="res-layer-stack">
-              <SignalNoiseVeil severity={Math.min(0.92, resonanceIntensity * 0.72)} scanlines noise pulseKey={pulseState.key} coverage="full" safeZones={resonanceSafeZones} />
-              <ResonanceFractureLayer phase={2} intensity={resonanceIntensity} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
-              <ResonancePulseLayer phase={2} intensity={Math.min(0.96, resonanceIntensity + 0.05)} pulseKey={pulseState.key} coverage="full" safeZones={resonanceSafeZones} />
-              <UIFragmentDebris mode="exhibits" density="medium" intensity={Math.min(0.92, resonanceIntensity)} pulseKey={pulseState.key} coverage="full" safeZones={resonanceSafeZones} />
+              <SignalNoiseVeil hostilityMode={HOSTILITY_MODE} severity={MAXIMUM_HOSTILITY.visual.resonanceNoiseSeverity} scanlines noise pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
+              <ResonanceFractureLayer hostilityMode={HOSTILITY_MODE} phase={3} intensity={resonanceIntensity} pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
+              <ResonancePulseLayer hostilityMode={HOSTILITY_MODE} phase={3} intensity={MAXIMUM_HOSTILITY.visual.resonancePulseIntensity} pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
+              <UIFragmentDebris hostilityMode={HOSTILITY_MODE} mode="exhibits" density={MAXIMUM_HOSTILITY.visual.resonanceFragmentDensity} intensity={MAXIMUM_HOSTILITY.visual.resonanceIntensity} pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
             </div>
             {/* Header */}
             <section 

@@ -15,6 +15,9 @@ import SignalNoiseVeil from '@/components/SignalNoiseVeil';
 import ResonanceShellCorruptor from '@/components/ResonanceShellCorruptor';
 import { createModuleSkinMap, getSkinClass, getSkinPulseClass, mutateModuleSkinMap, randomModule, SkinModule } from '@/data/skinPacks';
 import { emitPulse, initialResonancePulseState } from '@/lib/resonancePulseBus';
+import { useMaximumHeartbeatPulse } from '@/lib/useMaximumHeartbeatPulse';
+import { MAXIMUM_HOSTILITY } from '@/data/maximumHostility';
+import { HOSTILITY_MODE } from '@/data/hostilityPrimitives';
 
 interface Setting {
   id: string;
@@ -221,8 +224,15 @@ export default function SettingsPage() {
     setPulseState(prev => emitPulse(prev, 'mutation', 0.46));
   }, [resetCount, settings.length]);
 
-  const resonanceIntensity = Math.min(0.86, 0.4 + resetCount * 0.045 + (saved ? 0.12 : 0));
+  const resonanceIntensity = MAXIMUM_HOSTILITY.visual.resonanceIntensity;
   const resonanceSafeZones = [{ x: 18, y: 28, w: 64, h: 46 }];
+
+  useMaximumHeartbeatPulse({
+    active: true,
+    onPulse: strength => {
+      setPulseState(prev => emitPulse(prev, 'event', strength));
+    },
+  });
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -244,16 +254,16 @@ export default function SettingsPage() {
         <div className="flex flex-1">
           <SideNav />
           <main className={`res-interaction-root relative flex-1 overflow-x-hidden ${getSkinClass(skinMap.hero)} ${skinPulseModule === 'hero' ? getSkinPulseClass(skinMap.hero) : ''}`}>
-            <FakeBrowserChrome phase={1} mode="home" noiseLevel={resetCount + Number(saved)} />
-            <TargetedCursorLayer phase={1} pityPass={false} active />
-            <CursorCorruptionLayer phase={1} pityPass={false} active eventPulse={resetCount + Number(saved)} />
-            <LivingOverlay mode="home" intensity="low" mobileHostile eventPulse={resetCount} />
-            <ResonanceShellCorruptor pulseKey={pulseState.key} intensity={resonanceIntensity} profile="light" />
+            <FakeBrowserChrome phase={3} hostilityMode={HOSTILITY_MODE} mode="home" noiseLevel={resetCount + Number(saved)} />
+            <TargetedCursorLayer phase={3} hostilityMode={HOSTILITY_MODE} pityPass={false} active />
+            <CursorCorruptionLayer phase={3} hostilityMode={HOSTILITY_MODE} pityPass={false} active eventPulse={resetCount + Number(saved)} />
+            <LivingOverlay mode="home" hostilityMode={HOSTILITY_MODE} intensity={MAXIMUM_HOSTILITY.overlay.intensity} mobileHostile eventPulse={resetCount} />
+            <ResonanceShellCorruptor pulseKey={pulseState.key} hostilityMode={HOSTILITY_MODE} intensity={MAXIMUM_HOSTILITY.shell.intensity} profile={MAXIMUM_HOSTILITY.shell.profile} />
             <div className="res-layer-stack">
-              <SignalNoiseVeil severity={Math.min(0.68, resonanceIntensity * 0.68)} scanlines={false} noise pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
-              <ResonanceFractureLayer phase={1} intensity={resonanceIntensity} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
-              <ResonancePulseLayer phase={1} intensity={Math.min(0.75, resonanceIntensity + 0.04)} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
-              <UIFragmentDebris mode="settings" density="medium" intensity={Math.min(0.72, resonanceIntensity)} pulseKey={pulseState.key} coverage="mixed" safeZones={resonanceSafeZones} />
+              <SignalNoiseVeil hostilityMode={HOSTILITY_MODE} severity={MAXIMUM_HOSTILITY.visual.resonanceNoiseSeverity} scanlines noise pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
+              <ResonanceFractureLayer hostilityMode={HOSTILITY_MODE} phase={3} intensity={resonanceIntensity} pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
+              <ResonancePulseLayer hostilityMode={HOSTILITY_MODE} phase={3} intensity={MAXIMUM_HOSTILITY.visual.resonancePulseIntensity} pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
+              <UIFragmentDebris hostilityMode={HOSTILITY_MODE} mode="settings" density={MAXIMUM_HOSTILITY.visual.resonanceFragmentDensity} intensity={MAXIMUM_HOSTILITY.visual.resonanceIntensity} pulseKey={pulseState.key} coverage={MAXIMUM_HOSTILITY.visual.resonanceCoverage} safeZones={resonanceSafeZones} />
             </div>
             {/* Header */}
             <section 

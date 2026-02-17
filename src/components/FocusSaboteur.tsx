@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { HostilityPhase, hostilityPrimitives, withPityAdjustment } from '@/data/hostilityPrimitives';
+import { HostilityMode, HostilityPhase, hostilityPrimitives, withPityAdjustment } from '@/data/hostilityPrimitives';
 
 interface FocusSaboteurProps {
   phase: HostilityPhase;
@@ -9,6 +9,7 @@ interface FocusSaboteurProps {
   pityPass?: boolean;
   armSignal: number;
   active?: boolean;
+  hostilityMode?: HostilityMode;
   onIncident?: (line: string) => void;
 }
 
@@ -18,9 +19,11 @@ export function FocusSaboteur({
   pityPass = false,
   armSignal,
   active = true,
+  hostilityMode = 'legacy',
   onIncident,
 }: FocusSaboteurProps) {
   const rules = hostilityPrimitives.focusTrapRules;
+  const effectivePhase: HostilityPhase = hostilityMode === 'maximum' ? 3 : phase;
   const [decoysActiveUntil, setDecoysActiveUntil] = useState(0);
   const [tick, setTick] = useState(Date.now());
   const enterBypassUntilRef = useRef<Record<number, number>>({});
@@ -28,8 +31,8 @@ export function FocusSaboteur({
   const cooldownUntilRef = useRef(0);
 
   const sabotageChance = useMemo(
-    () => withPityAdjustment(rules.sabotageChance[phase], pityPass),
-    [phase, pityPass, rules.sabotageChance]
+    () => withPityAdjustment(rules.sabotageChance[effectivePhase], pityPass),
+    [effectivePhase, pityPass, rules.sabotageChance]
   );
 
   useEffect(() => {
@@ -87,7 +90,7 @@ export function FocusSaboteur({
 
     document.addEventListener('keydown', onKeyDown, true);
     return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [active, phase, pityPass, rules.enterRetryWindowMs, rules.struggleCooldownMs, rules.struggleThreshold, sabotageChance, step, onIncident]);
+  }, [active, effectivePhase, pityPass, rules.enterRetryWindowMs, rules.struggleCooldownMs, rules.struggleThreshold, sabotageChance, step, onIncident]);
 
   if (!active) return null;
 

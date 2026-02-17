@@ -369,3 +369,49 @@ export function scheduleTourEvent(params: ScheduleParams): TourEvent | null {
   }
   return candidates[candidates.length - 1] || null;
 }
+
+export function scheduleTourEventMaximum(params: Omit<ScheduleParams, 'phase'>): TourEvent | null {
+  const {
+    trigger,
+    now,
+    lastEventAt,
+    catastrophicCooldownMs,
+    baseChance,
+    rng,
+  } = params;
+
+  if (rng(1) > baseChance) {
+    return null;
+  }
+
+  const candidates = tourEvents.filter(event => {
+    if (event.trigger !== trigger) {
+      return false;
+    }
+    if (now - lastEventAt < event.cooldownMs) {
+      return false;
+    }
+    if (
+      CATASTROPHIC_EFFECTS.includes(event.effect) &&
+      now - lastEventAt < catastrophicCooldownMs
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const totalWeight = candidates.reduce((sum, event) => sum + event.probability, 0);
+  const roll = rng(2) * totalWeight;
+  let cumulative = 0;
+  for (const event of candidates) {
+    cumulative += event.probability;
+    if (roll <= cumulative) {
+      return event;
+    }
+  }
+  return candidates[candidates.length - 1] || null;
+}

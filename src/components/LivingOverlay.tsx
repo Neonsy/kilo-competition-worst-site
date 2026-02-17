@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { HostilityMode } from '@/data/hostilityPrimitives';
+import { MAXIMUM_HOSTILITY } from '@/data/maximumHostility';
 
 type OverlayMode = 'tour' | 'home' | 'exhibits';
 type OverlayIntensity = 'low' | 'medium' | 'high';
@@ -11,12 +13,13 @@ interface LivingOverlayProps {
   intensity?: OverlayIntensity;
   mobileHostile?: boolean;
   eventPulse?: number;
+  hostilityMode?: HostilityMode;
 }
 
 const ribbonCopy: Record<OverlayMode, string[]> = {
   tour: [
     'SYSTEM ALERT: your choices are being quality-scored for regret output',
-    'PHASE ESCALATION ACTIVE: interruptions are now policy-compliant',
+    'MAX HOSTILITY ACTIVE: interruptions are now policy-compliant',
     'NOTE: visible progress and real progress are legally distinct concepts',
   ],
   home: [
@@ -64,12 +67,23 @@ export function LivingOverlay({
   intensity = 'medium',
   mobileHostile = false,
   eventPulse = 0,
+  hostilityMode = 'legacy',
 }: LivingOverlayProps) {
   const [tick, setTick] = useState(0);
   const [showOccluder, setShowOccluder] = useState(false);
   const [bannerIndex, setBannerIndex] = useState(0);
+  const [fractureNotices, setFractureNotices] = useState<Array<{ id: string; left: string; top: string; text: string }>>([]);
 
+  const isMaximum = hostilityMode === 'maximum';
+  const effectivePhase = isMaximum ? 3 : phase;
   const config = intensityConfig[intensity];
+  const activeConfig = isMaximum
+    ? {
+        badges: MAXIMUM_HOSTILITY.overlay.badges,
+        ghosts: MAXIMUM_HOSTILITY.overlay.ghosts,
+        occludeRate: MAXIMUM_HOSTILITY.overlay.occluderBaseChance,
+      }
+    : config;
   const ribbons = ribbonCopy[mode];
   const telemetry = telemetryCopy[mode];
 
@@ -87,38 +101,78 @@ export function LivingOverlay({
 
   useEffect(() => {
     const occluder = setInterval(() => {
-      const phaseBoost = phase === 3 ? 0.08 : phase === 2 ? 0.04 : 0;
-      const pulseBoost = eventPulse > 0 ? Math.min(eventPulse * 0.01, 0.06) : 0;
-      const chance = config.occludeRate + phaseBoost + pulseBoost;
+      const phaseBoost = isMaximum ? 0 : phase === 3 ? 0.08 : phase === 2 ? 0.04 : 0;
+      const pulseBoost = eventPulse > 0 ? Math.min(eventPulse * 0.01, isMaximum ? 0.1 : 0.06) : 0;
+      const chance = activeConfig.occludeRate + phaseBoost + pulseBoost;
       if (Math.random() < chance) {
         setShowOccluder(true);
-        setTimeout(() => setShowOccluder(false), 750 + Math.floor(Math.random() * 900));
+        const [minMs, maxMs] = isMaximum
+          ? MAXIMUM_HOSTILITY.overlay.occluderWindowMs
+          : ([750, 1650] as [number, number]);
+        setTimeout(() => setShowOccluder(false), minMs + Math.floor(Math.random() * (maxMs - minMs)));
       }
-    }, 3200);
+    }, isMaximum ? 2400 : 3200);
     return () => clearInterval(occluder);
-  }, [config.occludeRate, eventPulse, phase]);
+  }, [activeConfig.occludeRate, eventPulse, isMaximum, phase]);
+
+  useEffect(() => {
+    if (!isMaximum) {
+      setFractureNotices([]);
+      return;
+    }
+    const labels = ['fracture', 'rift', 'signal', 'tear', 'echo', 'split', 'bleed'];
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setFractureNotices(prev => {
+        const next = [
+          ...prev,
+          {
+            id: `fracture-${now}`,
+            left: `${6 + Math.random() * 88}%`,
+            top: `${12 + Math.random() * 78}%`,
+            text: labels[Math.floor(Math.random() * labels.length)] || 'fracture',
+          },
+        ];
+        return next.slice(-10);
+      });
+    }, MAXIMUM_HOSTILITY.overlay.fractureNoticeIntervalMs);
+    return () => clearInterval(timer);
+  }, [isMaximum]);
 
   const badges = useMemo(
     () =>
-      [...Array(config.badges)].map((_, index) => ({
+      [...Array(activeConfig.badges)].map((_, index) => ({
         id: `${mode}-badge-${index}`,
         left: `${8 + (index * 13) % 82}%`,
         top: `${12 + ((index * 19 + tick * 2) % 70)}%`,
         label: ['UNSTABLE', 'REROUTE', 'CAUTION', 'PENDING', 'VERIFY', 'LOCKED', 'LATE'][index % 7],
       })),
-    [config.badges, mode, tick]
+    [activeConfig.badges, mode, tick]
   );
 
   const ghosts = useMemo(
     () =>
-      [...Array(config.ghosts)].map((_, index) => ({
+      [...Array(activeConfig.ghosts)].map((_, index) => ({
         id: `${mode}-ghost-${index}`,
         left: `${(index * 17 + tick * 3) % 100}%`,
         top: `${(index * 23 + tick * 5) % 100}%`,
-        size: 40 + ((index * 9 + phase * 11) % 55),
-        opacity: 0.09 + (index % 4) * 0.03,
+        size: (isMaximum ? 56 : 40) + ((index * 9 + effectivePhase * 11) % (isMaximum ? 72 : 55)),
+        opacity: (isMaximum ? 0.12 : 0.09) + (index % 4) * (isMaximum ? 0.04 : 0.03),
       })),
-    [config.ghosts, mode, phase, tick]
+    [activeConfig.ghosts, effectivePhase, isMaximum, mode, tick]
+  );
+
+  const rifts = useMemo(
+    () =>
+      isMaximum
+        ? [...Array(MAXIMUM_HOSTILITY.overlay.rifts)].map((_, index) => ({
+            id: `rift-${index}`,
+            top: `${8 + (index * 14) % 84}%`,
+            delay: `${index * 0.35}s`,
+            duration: `${8 + (index % 3) * 2}s`,
+          }))
+        : [],
+    [isMaximum]
   );
 
   return (
@@ -149,6 +203,13 @@ export function LivingOverlay({
             }}
           />
         ))}
+        {rifts.map(rift => (
+          <span
+            key={rift.id}
+            className="living-overlay-rift"
+            style={{ top: rift.top, animationDelay: rift.delay, animationDuration: rift.duration }}
+          />
+        ))}
       </div>
 
       <div className="living-overlay-badge-field">
@@ -162,6 +223,16 @@ export function LivingOverlay({
           </span>
         ))}
       </div>
+
+      {fractureNotices.map((notice, index) => (
+        <span
+          key={notice.id}
+          className="living-overlay-fracture-notice"
+          style={{ left: notice.left, top: notice.top, animationDelay: `${index * 0.05}s` }}
+        >
+          ▲ {notice.text}
+        </span>
+      ))}
 
       {showOccluder && (
         <div className={`living-overlay-occluder ${mobileHostile ? 'living-overlay-occluder-mobile' : ''}`}>

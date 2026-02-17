@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useEffect, useState, useRef } from "react";
+import type { HostilityMode } from "@/data/hostilityPrimitives";
 
 /**
  * ResonancePulseLayer
@@ -22,6 +23,7 @@ export interface ResonancePulseLayerProps {
   intensity?: number;
   safeZones?: Array<{ x: number; y: number; w: number; h: number }>;
   coverage?: "peripheral" | "mixed" | "full";
+  hostilityMode?: HostilityMode;
   /** Optional className override */
   className?: string;
 }
@@ -143,6 +145,7 @@ export default function ResonancePulseLayer({
   intensity = 0.3,
   safeZones = [],
   coverage = "mixed",
+  hostilityMode = 'legacy',
   className = "",
 }: ResonancePulseLayerProps) {
   const [seed, setSeed] = useState(() => Date.now());
@@ -190,16 +193,20 @@ export default function ResonancePulseLayer({
     return () => clearTimeout(timer);
   }, [pulseKey]);
 
+  const effectivePhase = hostilityMode === 'maximum' ? 3 : phase;
+  const effectiveIntensity = hostilityMode === 'maximum' ? Math.max(intensity, 0.97) : intensity;
+  const effectiveCoverage = hostilityMode === 'maximum' ? 'full' : coverage;
+
   const pulseBands = useMemo(
-    () => generatePulseBands(phase, intensity, seed, coverage),
-    [phase, intensity, seed, coverage]
+    () => generatePulseBands(effectivePhase, effectiveIntensity, seed, effectiveCoverage),
+    [effectivePhase, effectiveIntensity, seed, effectiveCoverage]
   );
   const ghosts = useMemo(
-    () => generateGhosts(phase, intensity, seed, safeZones),
-    [phase, intensity, seed, safeZones]
+    () => generateGhosts(effectivePhase, effectiveIntensity, seed, safeZones),
+    [effectivePhase, effectiveIntensity, seed, safeZones]
   );
 
-  const intensityClass = getIntensityClass(intensity);
+  const intensityClass = getIntensityClass(effectiveIntensity);
   const burstClass = burstActive ? "res-burst-active" : "";
 
   return (

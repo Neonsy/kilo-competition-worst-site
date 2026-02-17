@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { HostilityPhase, hostilityPrimitives, withPityAdjustment } from '@/data/hostilityPrimitives';
+import { HostilityMode, HostilityPhase, hostilityPrimitives, withPityAdjustment } from '@/data/hostilityPrimitives';
 
 interface DragFrictionFieldProps {
   phase: HostilityPhase;
   pityPass?: boolean;
   active?: boolean;
   resistanceBoost?: number;
+  hostilityMode?: HostilityMode;
   onIncident?: (line: string) => void;
 }
 
@@ -29,14 +30,16 @@ export function DragFrictionField({
   pityPass = false,
   active = true,
   resistanceBoost = 0,
+  hostilityMode = 'legacy',
   onIncident,
 }: DragFrictionFieldProps) {
   const rules = hostilityPrimitives.dragRules;
+  const effectivePhase: HostilityPhase = hostilityMode === 'maximum' ? 3 : phase;
   const interactionRef = useRef<WeakMap<HTMLInputElement, InteractionState>>(new WeakMap());
   const retryCountRef = useRef<WeakMap<HTMLInputElement, number>>(new WeakMap());
 
-  const baseMultiplier = useMemo(() => rules.frictionMultiplier[phase] + Math.min(0.2, resistanceBoost * 0.01), [phase, resistanceBoost, rules.frictionMultiplier]);
-  const snapChance = useMemo(() => withPityAdjustment(rules.snapBackChance[phase], pityPass), [phase, pityPass, rules.snapBackChance]);
+  const baseMultiplier = useMemo(() => rules.frictionMultiplier[effectivePhase] + Math.min(0.2, resistanceBoost * 0.01), [effectivePhase, resistanceBoost, rules.frictionMultiplier]);
+  const snapChance = useMemo(() => withPityAdjustment(rules.snapBackChance[effectivePhase], pityPass), [effectivePhase, pityPass, rules.snapBackChance]);
 
   useEffect(() => {
     if (!active) return;
@@ -84,7 +87,7 @@ export function DragFrictionField({
         const current = Number(input.value);
         const min = Number(input.min || 0);
         const max = Number(input.max || 100);
-        const next = Math.max(min, Math.min(max, current - Math.max(2, Math.floor(phase * 2))));
+        const next = Math.max(min, Math.min(max, current - Math.max(2, Math.floor(effectivePhase * 2))));
         input.value = String(next);
         input.dispatchEvent(new Event('input', { bubbles: true }));
         state.snapped = true;
@@ -102,7 +105,7 @@ export function DragFrictionField({
       document.removeEventListener('input', onInputCapture, true);
       document.removeEventListener('pointerup', onPointerUp, true);
     };
-  }, [active, baseMultiplier, onIncident, phase, pityPass, rules.maxSnapBackPerInteraction, rules.retryRelaxationThreshold, snapChance]);
+  }, [active, baseMultiplier, onIncident, effectivePhase, pityPass, rules.maxSnapBackPerInteraction, rules.retryRelaxationThreshold, snapChance]);
 
   return null;
 }

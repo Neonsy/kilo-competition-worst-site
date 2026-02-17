@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { HostilityMode } from '@/data/hostilityPrimitives';
 
 interface ProgressBarProps {
   currentStep: number;
   totalSteps: number;
   phase?: 1 | 2 | 3;
+  hostilityMode?: HostilityMode;
   strikes?: number;
   instability?: number;
   suspicion?: number;
@@ -20,6 +22,7 @@ export function ProgressBar({
   currentStep,
   totalSteps,
   phase = 1,
+  hostilityMode = 'legacy',
   strikes = 0,
   instability = 0,
   suspicion = 0,
@@ -90,9 +93,15 @@ export function ProgressBar({
       </div>
 
       <div className="flex flex-wrap gap-2 mb-2">
-        <span className="px-2 py-1 text-[10px] bg-[#8B4513] text-[#FFFF99] border border-[#FFFF99]">
-          PHASE {phase}
-        </span>
+        {hostilityMode === 'maximum' ? (
+          <span className="px-2 py-1 text-[10px] bg-[#8B0000] text-[#FFFF99] border border-[#FFFF99] animate-blink-fast">
+            MAX HOSTILITY MODE
+          </span>
+        ) : (
+          <span className="px-2 py-1 text-[10px] bg-[#8B4513] text-[#FFFF99] border border-[#FFFF99]">
+            PHASE {phase}
+          </span>
+        )}
         <span className="px-2 py-1 text-[10px] bg-[#FF0000] text-white border border-[#8B0000]">
           Strikes: {strikes}
         </span>
