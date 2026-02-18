@@ -35,6 +35,24 @@
   that.
 </p>
 
+<h2>Performance Note</h2>
+
+<p>
+  For the intended experience, use a machine with a dedicated/discrete GPU.
+</p>
+
+<p>
+  Also make sure your browser is configured to run on the dedicated GPU (not integrated graphics).
+</p>
+
+<p>
+  On low-end hardware or systems without a real GPU, lag and stutter are expected.
+</p>
+
+<p>
+  The unstable mouse cursor behavior is intentional design, not a bug.
+</p>
+
 </div>
 
 ---

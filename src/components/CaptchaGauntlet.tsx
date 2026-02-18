@@ -81,6 +81,12 @@ export function CaptchaGauntlet({ phase, attemptCount, assistTier, onPass, onFai
 
   const currentRound = useMemo(() => rounds[roundIndex] || rounds[0], [roundIndex]);
   const misleadingCopy = roundIndex === 1 && (attemptCount + fails) % 2 === 1;
+  const requiredAction =
+    isPassed
+      ? 'Captcha complete. Press Next (Labyrinth) to continue.'
+      : selection
+        ? 'Press Submit Round before timeout.'
+        : `Pick an answer for Round ${roundIndex + 1}.`;
 
   useEffect(() => {
     passedRef.current = isPassed;
@@ -167,7 +173,11 @@ export function CaptchaGauntlet({ phase, attemptCount, assistTier, onPass, onFai
     <div className="minigame-shell">
       <p className="minigame-title">Captcha Gauntlet</p>
       <p className="minigame-subtitle">Pass 3 contradictory rounds in one run. Timer tightens with phase.</p>
-      <p className="minigame-hint">How to pass: solve rounds 1 to 3 in order before timeout; any fail resets to round 1.</p>
+      <p className="minigame-hint">1) Solve rounds 1-3 in order. 2) Any wrong answer or timeout resets to round 1. 3) Finish all rounds in one run.</p>
+      <p className="minigame-required-action">Current required action: {requiredAction}</p>
+      {isPassed && (
+        <p className="minigame-success-banner">Captcha Complete. Press Next (Labyrinth) to continue.</p>
+      )}
       <p className="minigame-hint">Round {roundIndex + 1}/3 | Time left: {Math.max(0, timer)}s | Failures: {fails}</p>
       <p className="minigame-hint">Run policy: progress persists through lockout/freeze/noise. Reset only on fail or step change.</p>
       <p className="minigame-hint">Last reset: {lastResetReason || 'No reset yet.'}</p>
@@ -177,7 +187,10 @@ export function CaptchaGauntlet({ phase, attemptCount, assistTier, onPass, onFai
           <button
             key={option}
             type="button"
-            onClick={() => setSelection(option)}
+            onClick={() => {
+              if (isPassed || passedRef.current) return;
+              setSelection(option);
+            }}
             className={`minigame-card ${selection === option ? 'active' : ''} ${assistTier >= 2 && highlightCorrect && option === currentRound.correct ? 'assist-option-target' : ''}`}
           >
             {option}
@@ -188,7 +201,6 @@ export function CaptchaGauntlet({ phase, attemptCount, assistTier, onPass, onFai
       <p className="minigame-hint">Clue: {getSemanticHint(roundIndex)}</p>
       {assistTier >= 1 && <p className="minigame-hint">Assist hint: {getDirectHint(roundIndex)}</p>}
       {assistTier >= 2 && <p className="minigame-hint">Tier-2 assist: correct option is highlighted shortly after round start.</p>}
-      {isPassed && <p className="minigame-hint">Run complete. Press Next (Labyrinth).</p>}
       <button type="button" onClick={submit} className="minigame-submit" disabled={isPassed}>
         Submit Round
       </button>

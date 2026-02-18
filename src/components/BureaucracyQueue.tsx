@@ -49,6 +49,12 @@ export function BureaucracyQueue({ attemptCount, assistTier, onPass, onFail, onS
   const order = useMemo(() => expectedOrder(attemptCount + fails), [attemptCount, fails]);
   const ruleMode = useMemo(() => ((attemptCount + fails) % 2 === 0 ? 'A' : 'B'), [attemptCount, fails]);
   const showForcedHint = fails >= 3 || assistTier >= 1;
+  const requiredAction =
+    mode === 'passed'
+      ? 'Queue complete. Press Next (Labyrinth) to continue.'
+      : picked.length < 4
+        ? `Select ${4 - picked.length} more document${4 - picked.length === 1 ? '' : 's'}.`
+        : 'Press Submit Queue to validate this order.';
 
   useEffect(() => {
     onStatus?.({
@@ -62,6 +68,7 @@ export function BureaucracyQueue({ attemptCount, assistTier, onPass, onFail, onS
   }, [cycles, fails, lastResetReason, mode, onStatus, picked.length, ruleMode]);
 
   const togglePick = (doc: string) => {
+    if (mode === 'passed') return;
     setMode('building');
     setPicked(prev => {
       if (prev.includes(doc)) {
@@ -77,6 +84,7 @@ export function BureaucracyQueue({ attemptCount, assistTier, onPass, onFail, onS
   };
 
   const submit = () => {
+    if (mode === 'passed') return;
     setMode('submitted');
     setCycles(prev => prev + 1);
     const valid = picked.length === 4 && picked.every((item, index) => item === order[index]);
@@ -108,8 +116,12 @@ export function BureaucracyQueue({ attemptCount, assistTier, onPass, onFail, onS
     <div className="minigame-shell">
       <p className="minigame-title">Bureaucracy Queue</p>
       <p className="minigame-subtitle">Pick 4 documents in the correct order. Rule mode flips by attempt/fail parity.</p>
-      <p className="minigame-hint">How to pass: select 4 docs, then submit once your queue matches the current rule mode order.</p>
+      <p className="minigame-hint">1) Select exactly 4 documents in order. 2) Mode A/B can change after fails. 3) Submit when your queue matches active mode.</p>
       <p className="minigame-hint">Mode policy: A starts with Form A-17. B starts with Blue Carbon Copy.</p>
+      <p className="minigame-required-action">Current required action: {requiredAction}</p>
+      {mode === 'passed' && (
+        <p className="minigame-success-banner">Queue Complete. Press Next (Labyrinth) to continue.</p>
+      )}
       <div className="minigame-grid">
         {docs.map(doc => (
           <button

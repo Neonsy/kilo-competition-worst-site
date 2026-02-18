@@ -81,6 +81,14 @@ interface ActiveMinigameStatus extends MinigameStatusPayload {
   gameId: MinigameId;
 }
 
+interface InlineTourMessage {
+  kind: 'blocking' | 'misleading' | 'success' | 'info';
+  body: string;
+  actionHint?: string;
+  blocking: boolean;
+  code?: string;
+}
+
 interface ChaosContract {
   id: string;
   type: ChaosContractType;
@@ -716,7 +724,7 @@ function TourContent() {
   const [runState, dispatch] = useReducer(tourReducer, undefined, createInitialRunState);
   const [answers, setAnswers] = useState<TourAnswers>({});
   const [memoryAnchor, setMemoryAnchor] = useState<MemorySoundCode | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [inlineMessage, setInlineMessage] = useState<InlineTourMessage | null>(null);
   const [backClicks, setBackClicks] = useState(0);
   const [started, setStarted] = useState(false);
   const [disclaimer, setDisclaimer] = useState(getRandomDisclaimer());
@@ -817,6 +825,26 @@ function TourContent() {
 
   const pushFeed = useCallback((line: string) => {
     setFeed(prev => [line, ...prev].slice(0, 8));
+  }, []);
+
+  const clearInlineMessage = useCallback(() => {
+    setInlineMessage(null);
+  }, []);
+
+  const showBlockingMessage = useCallback((body: string, actionHint?: string, code?: string) => {
+    setInlineMessage({ kind: 'blocking', body, actionHint, blocking: true, code });
+  }, []);
+
+  const showMisleadingMessage = useCallback((body: string, actionHint?: string, code?: string) => {
+    setInlineMessage({ kind: 'misleading', body, actionHint, blocking: false, code });
+  }, []);
+
+  const showSuccessMessage = useCallback((body: string, actionHint?: string, code?: string) => {
+    setInlineMessage({ kind: 'success', body, actionHint, blocking: false, code });
+  }, []);
+
+  const showInfoMessage = useCallback((body: string, actionHint?: string, code?: string) => {
+    setInlineMessage({ kind: 'info', body, actionHint, blocking: false, code });
   }, []);
 
   const pushPulse = useCallback((kind: 'event' | 'cursor' | 'loading' | 'minigame' | 'mutation', strength: number) => {
@@ -922,7 +950,7 @@ function TourContent() {
     setStarted(true);
     setAnswers({});
     setMemoryAnchor(null);
-    setError(null);
+    clearInlineMessage();
     setContractFeedback(null);
     setPulseState(initialResonancePulseState);
     setFeed([`Session started with seed ${seed}.`, exhibitParam ? `Prefetch hint: ${exhibitParam}` : 'No prefetch hint.']);
@@ -958,7 +986,11 @@ function TourContent() {
           lockoutMs: 0,
           freezeMs: 0,
         });
-        setError('Chaos token consumed. Catastrophe downgraded to instability.');
+        showInfoMessage(
+          'Chaos token consumed. Catastrophe downgraded to instability.',
+          'Continue with the current step.',
+          'chaos-token'
+        );
         pushFeed(`Token shield intercepted ${event.id}.`);
         pushPulse('event', 0.76);
         return false;
@@ -989,13 +1021,19 @@ function TourContent() {
         triggerSkinMutation('event', undefined, true);
       }
       if (event.effect === 'regress' || event.effect === 'lockout' || event.effect === 'freeze') {
-        setError(event.copy);
+        showBlockingMessage(
+          event.copy,
+          event.effect === 'regress' ? 'Re-complete the current step after the regression.' : 'Wait for the blocker to clear, then press Next.',
+          event.effect
+        );
         return true;
       }
-      if (event.effect === 'strike') setError(event.copy);
+      if (event.effect === 'strike') {
+        showMisleadingMessage(event.copy, 'You can still proceed if your input is valid.', 'strike');
+      }
       return false;
     },
-    [pushFeed, pushPulse, runState.skillChaos.chaosTokens, seeded, triggerSkinMutation]
+    [pushFeed, pushPulse, runState.skillChaos.chaosTokens, seeded, showBlockingMessage, showInfoMessage, showMisleadingMessage, triggerSkinMutation]
   );
 
   useEffect(() => {
@@ -1034,7 +1072,7 @@ function TourContent() {
     }
     setAnswers(prev => ({ ...prev, [questionId]: nextValue }));
     triggerSkinMutation('input');
-    setError(null);
+    clearInlineMessage();
   };
 
   const validateStep = (question: TourQuestion, mercy: boolean): boolean => {
@@ -1057,39 +1095,55 @@ function TourContent() {
     if (question.type === 'minigame') {
       const result = asMinigameResult(answer);
       if (!result?.passed) {
-        setError('Required minigame is not completed yet.');
+        showBlockingMessage(
+          'Required minigame is not completed yet.',
+          'Complete the minigame above, then press Next (Labyrinth).',
+          'minigame-required'
+        );
         return false;
       }
     }
 
     if (question.id === 'timelock-confirm') {
       if (typeof answer !== 'string' || answer.trim() === '') {
-        setError('Pick any time-lock action first (Proceed now, Wait, or Spam).');
+        showBlockingMessage(
+          'Pick any time-lock action first (Proceed now, Wait, or Spam).',
+          'Select an action button first.',
+          'timelock'
+        );
         return false;
       }
       const gateIsOpen = nowTick % 7000 < 1800;
       if (!gateIsOpen) {
         dispatch({ type: 'SET_LOCKOUT', until: Date.now() + 1400 });
-        setError('Time-lock gate is CLOSED. Wait for OPEN status.');
+        showBlockingMessage(
+          'Time-lock gate is CLOSED.',
+          'Wait for OPEN status, then press Next immediately.',
+          'timelock'
+        );
         return false;
       }
       return true;
     }
 
     if (!mercy && Math.random() < adjustedRandomFailChance) {
-      setError(getRandomValidationMessage());
+      showMisleadingMessage(
+        getRandomValidationMessage(),
+        'System interference detected. If your input is valid, press Next again.',
+        'random-validation'
+      );
       return false;
     }
 
     if (question.validation?.required && isBlank(answer)) {
-      setError('This field is required and emotionally mandatory.');
+      showBlockingMessage('This field is required and emotionally mandatory.', 'Complete the required input before pressing Next.');
       return false;
     }
 
     if (question.id === 'contradiction-matrix') {
       const selected = asStringArray(answer);
       if (selected.length < (question.validation?.minSelections || 2)) {
-        setError(question.validation?.customMessage || 'Select more contradictions.');
+        showBlockingMessage(question.validation?.customMessage || 'Select more contradictions.', 'Choose more options, then press Next.');
         return false;
       }
     }
@@ -1104,14 +1158,22 @@ function TourContent() {
         return true;
       }
       if (!expected || !given || given !== expected) {
-        setError('Memory mismatch. Re-enter the exact sound code from Step 3.');
+        showBlockingMessage(
+          'Memory mismatch. Re-enter the exact sound code from Step 3.',
+          'Choose the same code selected in Step 3.',
+          'memory-trap'
+        );
         return false;
       }
     }
 
     if (question.id === 'useless-data' && typeof answer === 'string') {
       if (answer.toLowerCase().includes('john') || answer.toLowerCase().includes('jane')) {
-        setError('Your name is too normal. Please enter a more interesting name.');
+        showBlockingMessage(
+          'Your name is too normal. Please enter a more interesting name.',
+          'Use a more unusual name value.',
+          'useless-data'
+        );
         return false;
       }
     }
@@ -1122,15 +1184,19 @@ function TourContent() {
       const pin = String(integrity.pin || '');
       const expectedPin = String((runState.step + runState.strikes + attemptsOnCurrentStep) % 10);
       if (checksum.length < 3 || !/\d/.test(checksum)) {
-        setError('Checksum must be at least 3 chars and include a number.');
+        showBlockingMessage(
+          'Checksum must be at least 3 chars and include a number.',
+          'Example: "ab3" or "unstable9".',
+          'integrity-alpha'
+        );
         return false;
       }
       if (pin !== expectedPin) {
-        setError(`PIN mismatch. Hint: ${expectedPin}.`);
+        showBlockingMessage(`PIN mismatch. Hint: ${expectedPin}.`, 'Enter the exact PIN hint shown on this step.', 'integrity-alpha');
         return false;
       }
       if (!integrity.oath) {
-        setError('Integrity oath must be checked before proceeding.');
+        showBlockingMessage('Integrity oath must be checked before proceeding.', 'Check the oath box, then press Next.', 'integrity-alpha');
         return false;
       }
     }
@@ -1138,7 +1204,11 @@ function TourContent() {
     if (question.id === 'integrity-check-beta' && typeof answer === 'string') {
       const raw = answer.trim();
       if (!raw.includes('-') || !/\d/.test(raw)) {
-        setError('Use phrase-number format, e.g. unstable-42.');
+        showBlockingMessage(
+          'Use phrase-number format, e.g. unstable-42.',
+          'Include a hyphen and at least one number.',
+          'integrity-beta'
+        );
         return false;
       }
     }
@@ -1191,10 +1261,10 @@ function TourContent() {
       setAnswers(prev => ({ ...prev, [currentQuestion.id]: { passed: true, meta } }));
       triggerSkinMutation('minigame-win', 'question-card', true);
       pushPulse('minigame', 0.62);
-      setError(null);
+      showSuccessMessage('Minigame complete.', 'Press Next (Labyrinth) to continue.', 'minigame-pass');
       pushFeed(`Minigame ${gameId} passed.`);
     },
-    [currentQuestion, pushFeed, pushPulse, triggerSkinMutation]
+    [currentQuestion, pushFeed, pushPulse, showSuccessMessage, triggerSkinMutation]
   );
 
   const handleMinigameFail = useCallback(
@@ -1208,7 +1278,11 @@ function TourContent() {
       dispatch({ type: 'ADD_STRIKE' });
       dispatch({ type: 'SET_LOCKOUT', until: Date.now() + 850 + gameId.length * 35 });
       setAnswers(prev => ({ ...prev, [currentQuestion.id]: { passed: false } }));
-      setError(`Minigame failed: ${gameId}. Queue penalty applied.`);
+      showBlockingMessage(
+        `Minigame failed: ${gameId}. Queue penalty applied.`,
+        'Retry the minigame objective shown above.',
+        'minigame-fail'
+      );
       setFocusArmSignal(Date.now() + failCount);
       triggerSkinMutation('minigame-fail', 'modals', true);
       pushPulse('minigame', 0.82);
@@ -1222,13 +1296,22 @@ function TourContent() {
         pushFeed('Captcha pity token granted for repeated failures.');
       }
     },
-    [currentQuestion, pushFeed, pushPulse, runState.interactionState.loadingBypassTokens, runState.interactionState.minigameStats, runState.step, triggerSkinMutation]
+    [
+      currentQuestion,
+      pushFeed,
+      pushPulse,
+      runState.interactionState.loadingBypassTokens,
+      runState.interactionState.minigameStats,
+      runState.step,
+      showBlockingMessage,
+      triggerSkinMutation,
+    ]
   );
 
   const handleBack = useCallback(() => {
     const now = Date.now();
     if (now < runState.lockouts.nextUntil) {
-      setError('Back action blocked during lockout.');
+      showBlockingMessage('Back action blocked during lockout.', 'Wait for lockout to expire, then try Back again.', 'lockout');
       return;
     }
 
@@ -1243,9 +1326,9 @@ function TourContent() {
       dispatch({ type: 'SET_STEP', step: Math.min(totalQuestions, runState.step + 1) });
       pushFeed('Back action rerouted forward by max-mode policy.');
     } else {
-      setError('Back button currently unavailable.');
+      showMisleadingMessage('Back button currently unavailable.', 'Try Back again, or continue with Next.', 'back-unavailable');
     }
-  }, [backClicks, pushFeed, runState.lockouts.nextUntil, runState.step]);
+  }, [backClicks, pushFeed, runState.lockouts.nextUntil, runState.step, showBlockingMessage, showMisleadingMessage]);
 
   const completeTour = () => {
     const exhibitIds = getRandomExhibits(4).map(e => e.id);
@@ -1328,11 +1411,19 @@ function TourContent() {
     const now = Date.now();
 
     if (now < runState.lockouts.nextUntil) {
-      setError(`Lockout active for ${Math.ceil((runState.lockouts.nextUntil - now) / 1000)}s.`);
+      showBlockingMessage(
+        `Lockout active for ${Math.ceil((runState.lockouts.nextUntil - now) / 1000)}s.`,
+        'Wait for the countdown to finish, then press Next again.',
+        'lockout'
+      );
       return;
     }
     if (now < runState.debuffs.uiFreezeUntil) {
-      setError('UI freeze burst active. Please wait.');
+      showBlockingMessage(
+        `UI freeze burst active for ${Math.ceil((runState.debuffs.uiFreezeUntil - now) / 1000)}s.`,
+        'Wait for freeze to clear, then press Next.',
+        'freeze'
+      );
       return;
     }
 
@@ -1400,7 +1491,11 @@ function TourContent() {
 
     if (!mercy && runState.hardRegressions < MAX_HARD_REGRESSIONS && Math.random() < MAXIMUM_HOSTILITY.tour.regressionChance) {
       dispatch({ type: 'REGRESS', phase: EFFECTIVE_PHASE });
-      setError('Sequence drift: regression penalty applied.');
+      showBlockingMessage(
+        'Sequence drift: regression penalty applied.',
+        'Re-complete the current step after regression.',
+        'regression'
+      );
       pushFeed('Regression penalty triggered by escalation model.');
       pushPulse('event', 0.72);
       triggerSkinMutation('regression', 'question-card', true);
@@ -1421,7 +1516,7 @@ function TourContent() {
     dispatch({ type: 'ADVANCE', maxStep: totalQuestions });
     setDisclaimer(getRandomDisclaimer());
     triggerSkinMutation('advance', 'hero');
-    setError(null);
+    clearInlineMessage();
   };
 
   const phaseLabel = 'MAX HOSTILITY MODE';
@@ -1643,7 +1738,7 @@ function TourContent() {
                     onMinigameFail={handleMinigameFail}
                     attemptsOnStep={attemptsOnCurrentStep}
                     phase={EFFECTIVE_PHASE}
-                    error={error}
+                    inlineMessage={inlineMessage}
                     disclaimer={disclaimer}
                     gateOpen={nowTick % 7000 < 1800}
                     expectedPin={String((runState.step + runState.strikes + attemptsOnCurrentStep) % 10)}
@@ -1662,7 +1757,11 @@ function TourContent() {
                       label="Skip (invalid)"
                       onClick={() => {
                         dispatch({ type: 'SET_LOCKOUT', until: Date.now() + 1200 });
-                        setError('Skipping is not permitted. Lockout applied.');
+                        showBlockingMessage(
+                          'Skipping is not permitted. Lockout applied.',
+                          'Wait for lockout to clear, then continue the step.',
+                          'skip-blocked'
+                        );
                         triggerSkinMutation('invalid-skip', 'buttons', true);
                       }}
                       size="small"
@@ -1760,6 +1859,27 @@ export default function TourPage() {
   );
 }
 
+function getMinigameRequiredAction(question: TourQuestion, status: ActiveMinigameStatus | null): string {
+  if (status?.mode === 'passed') return 'Minigame complete. Press Next (Labyrinth) to continue.';
+
+  if (question.minigameId === 'bureaucracy-queue') {
+    const selected = status?.selectedCount ?? 0;
+    if (selected < 4) return `Select ${4 - selected} more document${4 - selected === 1 ? '' : 's'}.`;
+    return 'Press Submit Queue to validate this order.';
+  }
+
+  if (question.minigameId === 'maze-consent') {
+    return 'Click the next safe tile toward E and avoid the decoy tile.';
+  }
+
+  if (question.minigameId === 'captcha-gauntlet') {
+    const round = status?.round ?? 1;
+    return `Pick an answer for Round ${round} and press Submit Round before timeout.`;
+  }
+
+  return 'Complete the run condition shown in the minigame.';
+}
+
 function QuestionCard({
   className,
   question,
@@ -1769,7 +1889,7 @@ function QuestionCard({
   onMinigameFail,
   attemptsOnStep,
   phase,
-  error,
+  inlineMessage,
   disclaimer,
   gateOpen,
   expectedPin,
@@ -1786,7 +1906,7 @@ function QuestionCard({
   onMinigameFail: (gameId: MinigameId) => void;
   attemptsOnStep: number;
   phase: 1 | 2 | 3;
-  error: string | null;
+  inlineMessage: InlineTourMessage | null;
   disclaimer: string;
   gateOpen: boolean;
   expectedPin: string;
@@ -1804,6 +1924,28 @@ function QuestionCard({
   ];
   const style = styles[question.questionNumber % styles.length];
   const cardRotation = useMemo(() => stableRotation(`card:${question.id}`, 1.2), [question.id]);
+  const minigameRequiredAction = useMemo(
+    () => (question.type === 'minigame' ? getMinigameRequiredAction(question, minigameStatus) : null),
+    [minigameStatus, question]
+  );
+  const messageHeading = inlineMessage
+    ? inlineMessage.kind === 'misleading'
+      ? 'System Interference'
+      : inlineMessage.kind === 'success'
+        ? 'Progress Updated'
+        : inlineMessage.kind === 'info'
+          ? 'Status Update'
+          : 'Action Required'
+    : '';
+  const messageIcon = inlineMessage
+    ? inlineMessage.kind === 'misleading'
+      ? '⌁'
+      : inlineMessage.kind === 'success'
+        ? '✔'
+        : inlineMessage.kind === 'info'
+          ? 'i'
+          : '⚠'
+    : '';
 
   useEffect(() => {
     setTooltipVisible(question.type === 'minigame' || question.id === 'memory-trap' || question.id === 'timelock-confirm');
@@ -1830,6 +1972,7 @@ function QuestionCard({
       {question.type === 'minigame' && (
         <div className="assist-panel">
           <p className="assist-kicker">MINIGAME STATUS</p>
+          {minigameRequiredAction && <p className="minigame-required-action">Current required action: {minigameRequiredAction}</p>}
           <p className="assist-copy">
             Mode: {minigameStatus?.mode || 'running'} | Fails: {minigameStatus?.fails ?? 0} | Coaching tier: {minigameAssistTier} (streak {activeFailStreak})
           </p>
@@ -1874,7 +2017,20 @@ function QuestionCard({
         </div>
       )}
 
-      {error && <div className="assist-inline-alert" style={{ fontFamily: "'Comic Neue', cursive" }}>⚠️ {error}</div>}
+      {inlineMessage && (
+        <div
+          className={`assist-inline-alert ${inlineMessage.kind}`}
+          style={{ fontFamily: "'Comic Neue', cursive" }}
+          role="status"
+          aria-live={inlineMessage.blocking ? 'assertive' : 'polite'}
+        >
+          <p className="assist-inline-alert-title">
+            {messageIcon} {messageHeading}
+          </p>
+          <p>{inlineMessage.body}</p>
+          {inlineMessage.actionHint && <p className="assist-inline-alert-hint">Next: {inlineMessage.actionHint}</p>}
+        </div>
+      )}
 
       <div className="mt-4 text-sm text-[#666666] relative" style={{ fontFamily: "'VT323', monospace" }}>
         <button type="button" onClick={() => setTooltipVisible(prev => !prev)} className="text-[#0066CC] underline">
@@ -1976,6 +2132,32 @@ function renderQuestionContent(
     );
   }
 
+  if (question.id === 'integrity-check-beta') {
+    const value = typeof answer === 'string' ? answer : '';
+    const formatValid = value.trim().includes('-') && /\d/.test(value.trim());
+    return (
+      <div className="space-y-3" data-clipboard-hostile>
+        <div className="assist-panel softlock-checklist">
+          <p className="assist-kicker">FORMAT CHECKLIST</p>
+          <p className="assist-copy">Required format: phrase-number</p>
+          <p className="assist-copy">Valid examples: unstable-42, panic-7</p>
+          <p className="assist-copy">Invalid examples: phrase42, phrase-</p>
+          <p className={`softlock-item ${formatValid ? 'softlock-ready' : 'softlock-not-ready'}`}>
+            {formatValid ? '✓' : '✖'} Current value includes a hyphen and a number.
+          </p>
+        </div>
+        <HostileInput
+          name={question.id}
+          label="Final Phrase"
+          placeholder={question.placeholder || 'Format: phrase-42'}
+          required={question.validation?.required}
+          value={value}
+          onChange={onAnswer}
+        />
+      </div>
+    );
+  }
+
   if (question.type === 'input' || question.type === 'memory') {
     return (
       <div data-clipboard-hostile>
@@ -2026,6 +2208,10 @@ function renderQuestionContent(
           <p className="assist-copy">
             Selected action: <strong>{selectedLabel}</strong>
           </p>
+          <p className={`softlock-item ${gateOpen ? 'softlock-ready' : 'softlock-not-ready'}`}>
+            {gateOpen ? '✓' : '✖'} {gateOpen ? 'Gate is OPEN. You can submit now.' : 'Gate is CLOSED. Next will be blocked until OPEN.'}
+          </p>
+          {!gateOpen && <p className="assist-copy">Unblock action: wait for OPEN, then press Next immediately.</p>}
         </div>
         {question.options?.map(option => (
           <button
@@ -2044,13 +2230,30 @@ function renderQuestionContent(
 
   if (question.type === 'integrity') {
     const integrity = asIntegrity(answer);
+    const checksum = String(integrity.checksum || '');
+    const pin = String(integrity.pin || '');
+    const checksumReady = checksum.length >= 3 && /\d/.test(checksum);
+    const pinReady = pin === expectedPin;
+    const oathReady = Boolean(integrity.oath);
     return (
       <div className="space-y-3" data-clipboard-hostile>
         <div className="p-3 bg-[#FFFF99] border-2 border-dashed border-[#8B4513] text-xs" style={{ fontFamily: "'VT323', monospace" }}>PIN hint: <strong>{expectedPin}</strong></div>
-        <input type="text" value={integrity.checksum || ''} onChange={e => onAnswer({ ...integrity, checksum: e.target.value })} placeholder="Checksum (needs a number)" className="w-full px-3 py-2 border-2 border-[#808080]" style={{ fontFamily: "'Courier New', monospace" }} />
-        <input type="text" value={integrity.pin || ''} onChange={e => onAnswer({ ...integrity, pin: e.target.value })} placeholder="PIN" className="w-full px-3 py-2 border-2 border-[#808080]" style={{ fontFamily: "'Courier New', monospace" }} />
+        <div className="assist-panel softlock-checklist">
+          <p className="assist-kicker">INTEGRITY CHECKLIST</p>
+          <p className={`softlock-item ${checksumReady ? 'softlock-ready' : 'softlock-not-ready'}`}>
+            {checksumReady ? '✓' : '✖'} Checksum: at least 3 chars and includes a number (examples: ab3, panic9).
+          </p>
+          <p className={`softlock-item ${pinReady ? 'softlock-ready' : 'softlock-not-ready'}`}>
+            {pinReady ? '✓' : '✖'} PIN: must match hint digit ({expectedPin}).
+          </p>
+          <p className={`softlock-item ${oathReady ? 'softlock-ready' : 'softlock-not-ready'}`}>
+            {oathReady ? '✓' : '✖'} Oath checkbox must be checked.
+          </p>
+        </div>
+        <input type="text" value={checksum} onChange={e => onAnswer({ ...integrity, checksum: e.target.value })} placeholder="Checksum (needs a number)" className="w-full px-3 py-2 border-2 border-[#808080]" style={{ fontFamily: "'Courier New', monospace" }} />
+        <input type="text" value={pin} onChange={e => onAnswer({ ...integrity, pin: e.target.value })} placeholder="PIN" className="w-full px-3 py-2 border-2 border-[#808080]" style={{ fontFamily: "'Courier New', monospace" }} />
         <label className="flex items-center gap-2" style={{ fontFamily: "'Comic Neue', cursive" }}>
-          <input type="checkbox" checked={Boolean(integrity.oath)} onChange={e => onAnswer({ ...integrity, oath: e.target.checked })} />
+          <input type="checkbox" checked={oathReady} onChange={e => onAnswer({ ...integrity, oath: e.target.checked })} />
           I solemnly swear my checksum is emotionally honest.
         </label>
       </div>

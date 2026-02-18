@@ -8,6 +8,14 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 
 ## Recently Completed
 
+- [x] README GPU routing clarification (2026-02-18):
+  - Updated the performance note in `README.md` to explicitly require running the browser process on the dedicated/discrete GPU (not integrated graphics) for intended behavior.
+- [x] Tour clarity + soft-lock UX pass (2026-02-18):
+  - Replaced tour inline error string with typed inline message states in `src/app/tour/page.tsx` (`blocking`/`misleading`/`success`/`info`) and updated card rendering to style channels without explicit real/fake labels.
+  - Added explicit soft-lock guidance and readiness checklists for `timelock-confirm`, `integrity-check` (checksum/PIN/oath), and `integrity-check-beta` (`phrase-number`) in tour question rendering.
+  - Added persistent minigame required-action lines and completion banners to `BureaucracyQueue`, `MazeOfConsent`, and `CaptchaGauntlet`; guarded post-pass interactions from regressing visual completion state.
+  - Added new supporting styles in `src/app/globals.css` for misleading vs blocking alerts, soft-lock checklists, and minigame success/action highlights.
+  - Updated `README.md` with a visible performance note: dedicated/discrete GPU recommended and cursor anomalies are intentional.
 - [x] React Compiler setup (2026-02-18):
   - Installed `babel-plugin-react-compiler@1.0.0` with Bun.
   - Enabled `reactCompiler: true` in `next.config.ts`.

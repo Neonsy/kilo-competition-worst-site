@@ -73,6 +73,12 @@ export function MazeOfConsent({ phase, attemptCount, assistTier, onPass, onFail,
   const current = moves[moves.length - 1] || '0-0';
   const currentIndex = activePath.indexOf(current);
   const expectedNext = activePath[currentIndex + 1];
+  const requiredAction =
+    mode === 'passed'
+      ? 'Maze complete. Press Next (Labyrinth) to continue.'
+      : expectedNext
+        ? `Click safe tile ${expectedNext}.`
+        : 'Step onto E to finish.';
 
   useEffect(() => {
     onStatus?.({
@@ -95,6 +101,7 @@ export function MazeOfConsent({ phase, attemptCount, assistTier, onPass, onFail,
   };
 
   const clickCell = async (cellId: string) => {
+    if (mode === 'passed') return;
     setMode('running');
     if (slowMove) {
       await new Promise(resolve => setTimeout(resolve, 260));
@@ -134,7 +141,11 @@ export function MazeOfConsent({ phase, attemptCount, assistTier, onPass, onFail,
     <div className="minigame-shell">
       <p className="minigame-title">Maze of Consent</p>
       <p className="minigame-subtitle">Reach the end tile in 9 moves or fewer. One fake success tile resets you.</p>
-      <p className="minigame-hint">How to pass: start at S, follow the safe route tile-by-tile, and avoid the decoy tile.</p>
+      <p className="minigame-hint">1) Start at S and follow the safe path tile-by-tile. 2) Avoid the decoy tile. 3) Reach E within 9 moves.</p>
+      <p className="minigame-required-action">Current required action: {requiredAction}</p>
+      {mode === 'passed' && (
+        <p className="minigame-success-banner">Maze Complete. Press Next (Labyrinth) to continue.</p>
+      )}
       <div className="maze-grid">
         {cells.map(cell => {
           const visited = moves.includes(cell.id);

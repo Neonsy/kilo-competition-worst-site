@@ -301,7 +301,7 @@ export const tourQuestions: TourQuestion[] = [
     eventHooks: ['before-validate', 'before-transition'],
     moduleSkinPool: allSkinPools,
     mutationHooks: ['click', 'event'],
-    helpText: 'Open windows are brief.',
+    helpText: 'Pick an action first, then submit only while gate shows OPEN.',
   },
   {
     id: 'integrity-check',
@@ -316,7 +316,7 @@ export const tourQuestions: TourQuestion[] = [
     eventHooks: ['before-validate', 'after-validate'],
     moduleSkinPool: allSkinPools,
     mutationHooks: ['input', 'fail'],
-    helpText: 'Checksum must include digits.',
+    helpText: 'Pass requires checksum with a digit, matching PIN, and oath checked.',
   },
   {
     id: 'policy-ack',
@@ -392,7 +392,7 @@ export const tourQuestions: TourQuestion[] = [
     eventHooks: ['before-validate', 'before-transition'],
     moduleSkinPool: allSkinPools,
     mutationHooks: ['input', 'fail'],
-    helpText: 'Must include at least one hyphen and one number.',
+    helpText: 'Use phrase-number format like unstable-42 (hyphen plus number required).',
   },
   {
     id: 'final-confirm',
