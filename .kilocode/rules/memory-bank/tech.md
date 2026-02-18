@@ -6,6 +6,7 @@
 | ------------ | ------- | ------------------------------- |
 | Next.js      | 16.x    | React framework with App Router |
 | React        | 19.x    | UI library                      |
+| React Compiler | 1.0.x | Automatic React memoization compiler |
 | TypeScript   | 5.9.x   | Type-safe JavaScript            |
 | Tailwind CSS | 4.x     | Utility-first CSS               |
 | Bun          | Latest  | Package manager & runtime       |
@@ -36,6 +37,7 @@ npm run build      # Next production build
 ### Next.js Config (`next.config.ts`)
 
 - App Router enabled
+- React Compiler enabled via `reactCompiler: true`
 - Default settings for flexibility
 
 ### TypeScript Config (`tsconfig.json`)
@@ -75,6 +77,7 @@ npm run build      # Next production build
   "@types/react": "^19.2.7",
   "@types/react-dom": "^19.2.3",
   "@tailwindcss/postcss": "^4.1.17",
+  "babel-plugin-react-compiler": "^1.0.0",
   "tailwindcss": "^4.1.17",
   "eslint": "^9.39.1",
   "eslint-config-next": "^16.0.0"

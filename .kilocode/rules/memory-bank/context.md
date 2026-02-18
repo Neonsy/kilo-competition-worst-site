@@ -8,6 +8,10 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 
 ## Recently Completed
 
+- [x] React Compiler setup (2026-02-18):
+  - Installed `babel-plugin-react-compiler@1.0.0` with Bun.
+  - Enabled `reactCompiler: true` in `next.config.ts`.
+  - Verified production build succeeds with `bun run build`.
 - [x] README refresh pass (2026-02-18):
   - Rewrote `README.md` with centered GitHub-friendly layout, updated project summary to the current 18-step tour scope, and embedded the hosted tour completion video directly in the README.
 - [x] Custom not-found route pass (2026-02-17):
@@ -304,6 +308,7 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 
 | Date | Changes |
 |------|---------|
+| 2026-02-18 | Installed and enabled React Compiler (`babel-plugin-react-compiler`, `reactCompiler: true` in `next.config.ts`) and validated with `bun run build` |
 | 2026-02-18 | Rewrote `README.md` with centered presentation, updated current tour overview copy, and embedded the tour completion video directly in the README |
 | 2026-02-17 | Added custom App Router `not-found` page (`src/app/not-found.tsx`) with chaos styling, continuously shifting bounded home button, and explicit overflow prevention for mobile/desktop viewports |
 | 2026-02-16 | Complete Museum of Bad Decisions built from scratch |
