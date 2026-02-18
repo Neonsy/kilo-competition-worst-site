@@ -8,6 +8,8 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 
 ## Recently Completed
 
+- [x] README refresh pass (2026-02-18):
+  - Rewrote `README.md` with centered GitHub-friendly layout, updated project summary to the current 18-step tour scope, and embedded the hosted tour completion video directly in the README.
 - [x] Custom not-found route pass (2026-02-17):
   - Added `src/app/not-found.tsx` as a standalone chaos 404 panel with an always-shifting bounded `Back To Home` button (`href="/"`) and strict no-overflow viewport/stage containment.
 - [x] Certificate victory loop update (2026-02-17): `src/app/certificate/page.tsx` now sets `victory.mp3` to loop for the full certificate session (until route cleanup).
@@ -302,6 +304,7 @@ A deliberately awful website that masquerades as an interactive museum of terrib
 
 | Date | Changes |
 |------|---------|
+| 2026-02-18 | Rewrote `README.md` with centered presentation, updated current tour overview copy, and embedded the tour completion video directly in the README |
 | 2026-02-17 | Added custom App Router `not-found` page (`src/app/not-found.tsx`) with chaos styling, continuously shifting bounded home button, and explicit overflow prevention for mobile/desktop viewports |
 | 2026-02-16 | Complete Museum of Bad Decisions built from scratch |
 | 2026-02-16 | Added hostile UX escalation pass while preserving one valid completion path |
